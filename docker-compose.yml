@@ -1,0 +1,13 @@
+# Run the production image locally:  cp .env.example backend/.env  (edit)  &&  docker compose up --build
+services:
+  app:
+    build: .
+    ports: ["8080:8080"]
+    env_file: backend/.env
+    environment:
+      APP_ENV: development
+      STORE_BACKEND: local
+      LOCAL_STORE_DIR: /data
+    volumes: ["scriptwright-data:/data"]
+volumes:
+  scriptwright-data:

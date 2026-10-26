@@ -1,0 +1,49 @@
+name: Deploy
+# Deploys main to Cloud Run once CI passes. Needs the repository variables printed by infra/setup-gcp.sh.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: { group: deploy, cancel-in-progress: false }
+
+jobs:
+  deploy:
+    if: >-
+      vars.GCP_WIF_PROVIDER != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write }
+    env:
+      PROJECT_ID: ${{ vars.PROJECT_ID }}
+      REGION: ${{ vars.REGION }}
+      SERVICE: ${{ vars.SERVICE || 'scriptwright' }}
+      GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
+      ALLOWED_EMAIL_DOMAINS: ${{ vars.ALLOWED_EMAIL_DOMAINS }}
+      ALLOWED_EMAILS: ${{ vars.ALLOWED_EMAILS }}
+      DAILY_JOB_LIMIT: ${{ vars.DAILY_JOB_LIMIT }}
+      MODEL_CREATIVE: ${{ vars.MODEL_CREATIVE }}
+      MODEL_CRITIC: ${{ vars.MODEL_CRITIC }}
+      MODEL_EXTRACT: ${{ vars.MODEL_EXTRACT }}
+      REASONING_EFFORT: ${{ vars.REASONING_EFFORT }}
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.workflow_run.head_sha || github.sha }}" }
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build and push image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE}/app:$(git rev-parse --short=12 HEAD)"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Deploy to Cloud Run
+        run: bash infra/deploy.sh
