@@ -6,6 +6,7 @@ Both expose the same interface so the pipeline doesn't care which is used.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import Optional, Protocol
 from pydantic import BaseModel
 
 from .config import settings
+
+log = logging.getLogger(__name__)
 from .house_format import DEFAULT_FORMAT, FormatSpec
 from .schemas import Job, Script, utcnow
 
@@ -232,11 +235,33 @@ class PostgresStore:
 
     def __init__(self, url: str):
         from psycopg_pool import ConnectionPool
-        # check= revalidates idle connections, which serverless Postgres closes when it scales to zero
-        self.pool = ConnectionPool(url, min_size=1, max_size=5, kwargs={"autocommit": True, "connect_timeout": 10},
+        url = self._working_url(url)
+        # check= revalidates idle connections, which serverless Postgres closes when it scales to zero;
+        # prepare_threshold=None keeps it compatible with PgBouncer-style poolers (e.g. Neon's "-pooler" hosts)
+        self.pool = ConnectionPool(url, min_size=1, max_size=5,
+                                   kwargs={"autocommit": True, "connect_timeout": 10, "prepare_threshold": None},
                                    check=ConnectionPool.check_connection, open=True, timeout=20)
         with self.pool.connection() as c:
             c.execute(self.DDL)
+
+    @staticmethod
+    def _working_url(url: str) -> str:
+        """Connect once up front so a bad URL fails fast with its real error, and fall back to dropping
+        options some poolers or client libraries reject (channel_binding)."""
+        import psycopg
+        try:
+            psycopg.connect(url, connect_timeout=10).close()
+            return url
+        except psycopg.OperationalError as e:
+            relaxed = re.sub(r"[?&]channel_binding=[^&]*", "", url).replace("?&", "?").rstrip("?")
+            if relaxed != url:
+                try:
+                    psycopg.connect(relaxed, connect_timeout=10).close()
+                    log.warning("database connected after dropping channel_binding (%s)", redact(str(e)))
+                    return relaxed
+                except psycopg.OperationalError:
+                    pass
+            raise
 
     def _put(self, collection: str, id_: str, model: BaseModel, owner: str = "", created_at: str = ""):
         from psycopg.types.json import Jsonb
