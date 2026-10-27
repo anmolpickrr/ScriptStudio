@@ -44,6 +44,8 @@ jobs:
           check bundle "$asset" 'createRoot\|React\|jsx'
           check health /api/health '"ok":true'
           check config /api/config '"auth_mode"'
+          check deep_health /api/health/deep '"db":"ok"'
+          log "deep_health: $(cat out/deep_health 2>/dev/null)"
           check options /api/options '"platforms"'
           check new_route /new 'id="root"'
           if grep -q '"demo_mode":true' out/config; then log "WARN instance is in demo mode (no AI model)"; fi

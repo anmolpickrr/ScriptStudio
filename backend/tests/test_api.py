@@ -222,3 +222,18 @@ def test_restart_recovery(client, monkeypatch):
     assert worker.recover_interrupted_jobs() == 2
     assert ran == ["new1"] and s.get_job("new1").status == "queued"
     assert s.get_job(done).status == "ready" and "interrupted" in s.get_job(done).error
+
+
+def test_unreachable_database_gives_clear_errors(monkeypatch):
+    monkeypatch.setattr(settings, "store_backend", "postgres")
+    monkeypatch.setattr(settings, "database_url", "postgresql://user:secretpw@127.0.0.1:1/db?connect_timeout=2")
+    monkeypatch.setattr(store_mod, "_store", None)
+    import psycopg_pool
+    real = psycopg_pool.ConnectionPool
+    monkeypatch.setattr(psycopg_pool, "ConnectionPool", lambda *a, **k: real(*a, **{**k, "timeout": 2}))
+    c = TestClient(app)
+    deep = c.get("/api/health/deep").json()
+    assert deep["ok"] is False and deep["db"].startswith("error:") and "secretpw" not in deep["db"]
+    r = c.get("/api/options")
+    assert r.status_code == 503 and "DATABASE_URL" in r.json()["detail"]
+    monkeypatch.setattr(store_mod, "_store", None)

@@ -19,6 +19,26 @@ def health():
     return {"ok": True}
 
 
+@router.get("/api/health/deep")
+def deep_health():
+    """Checks the database and AI configuration (not the AI itself). Errors are redacted. Not used by the
+    platform health check, so a serverless database can still scale to zero between visits."""
+    from ..store import StoreUnavailable, redact
+    out = {"store": settings.store_backend, "llm_provider": settings.llm_provider,
+           "models": [settings.model_creative, settings.model_critic, settings.model_extract],
+           "config_issues": [i for i in settings.validate() if "SESSION_SECRET" not in i]}
+    try:
+        store = get_store()
+        store.list_formats()
+        out["db"] = "ok"
+    except StoreUnavailable as e:
+        out["db"] = f"error: {e}"
+    except Exception as e:
+        out["db"] = f"error: {type(e).__name__}: {redact(str(e))}"
+    out["ok"] = out["db"] == "ok" and not out["config_issues"]
+    return out
+
+
 @router.get("/api/admin/status")
 def status(user: User = Depends(admin_user)):
     issues = settings.validate()

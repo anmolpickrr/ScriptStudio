@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from dataclasses import dataclass, field
 
@@ -50,6 +51,17 @@ PROVIDER_PRESETS: dict[str, dict] = {
     "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY", "min_interval": 4.0},
     "compat": {"key_env": "LLM_API_KEY"},
 }
+
+
+def clean_database_url(raw: str) -> str:
+    """Accept what people actually paste from a provider's dashboard: `psql '…'` snippets, quotes,
+    `DATABASE_URL=…` lines, stray whitespace."""
+    s = (raw or "").strip()
+    s = re.sub(r"^(export\s+)?DATABASE_URL\s*=\s*", "", s)
+    s = re.sub(r"^psql\s+", "", s).strip()
+    s = s.strip("'\"` ").strip()
+    m = re.search(r"postgres(?:ql)?://\S+", s)
+    return m.group(0).rstrip("'\"`") if m else s
 
 
 @dataclass
@@ -107,6 +119,7 @@ class Settings:
     fetch_max_bytes: int = 5_000_000
 
     def __post_init__(self):
+        self.database_url = clean_database_url(self.database_url)
         preset = PROVIDER_PRESETS.get(self.llm_provider, {})
         self.llm_base_url = self.llm_base_url or preset.get("base_url", "")
         self.llm_api_key = self.llm_api_key or _env(preset.get("key_env", "")) if preset.get("key_env") else self.llm_api_key

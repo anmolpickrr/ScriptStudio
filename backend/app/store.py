@@ -6,6 +6,7 @@ Both expose the same interface so the pipeline doesn't care which is used.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Optional, Protocol
@@ -232,8 +233,8 @@ class PostgresStore:
     def __init__(self, url: str):
         from psycopg_pool import ConnectionPool
         # check= revalidates idle connections, which serverless Postgres closes when it scales to zero
-        self.pool = ConnectionPool(url, min_size=1, max_size=5, kwargs={"autocommit": True},
-                                   check=ConnectionPool.check_connection, open=True, timeout=30)
+        self.pool = ConnectionPool(url, min_size=1, max_size=5, kwargs={"autocommit": True, "connect_timeout": 10},
+                                   check=ConnectionPool.check_connection, open=True, timeout=20)
         with self.pool.connection() as c:
             c.execute(self.DDL)
 
@@ -327,6 +328,20 @@ class PostgresStore:
         return None
 
 
+class StoreUnavailable(RuntimeError):
+    pass
+
+
+def redact(msg: str) -> str:
+    """Error text safe to show publicly: no credentials, hostnames or IPs."""
+    msg = re.sub(r"postgres(?:ql)?://\S+", "postgresql://***", msg)
+    msg = re.sub(r'"[^"]*\.(?:tech|com|net|io|cloud|app)"', '"<host>"', msg)
+    msg = re.sub(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", "<ip>", msg)
+    msg = re.sub(r"\([0-9a-f:]{6,}\)", "(<ip>)", msg)
+    msg = re.sub(r"(password|user)[^,;\n]*", r"\1 <redacted>", msg, flags=re.I)
+    return " ".join(msg.split())[:400]
+
+
 _store: Optional[Store] = None
 
 
@@ -334,7 +349,11 @@ def get_store() -> Store:
     global _store
     if _store is None:
         if settings.store_backend == "postgres":
-            _store = PostgresStore(settings.database_url)
+            try:
+                _store = PostgresStore(settings.database_url)
+            except Exception as e:
+                cause = e.__cause__ or e
+                raise StoreUnavailable(f"{type(cause).__name__}: {redact(str(cause))}") from e
         elif settings.store_backend == "firestore":
             _store = FirestoreStore(settings.gcp_project)
         else:

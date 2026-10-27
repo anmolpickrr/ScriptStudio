@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .config import settings
 from .routes import jobs, system
+from .store import StoreUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("scriptstudio")
@@ -66,6 +67,13 @@ async def validation_error(request: Request, exc: RequestValidationError):
         field = ".".join(str(x) for x in e["loc"] if x != "body")
         msgs.append(f"{field}: {e['msg']}" if field else e["msg"])
     return JSONResponse({"detail": "; ".join(msgs)[:600]}, status_code=422)
+
+
+@app.exception_handler(StoreUnavailable)
+async def store_down(request: Request, exc: StoreUnavailable):
+    log.error("database unavailable: %s", exc)
+    return JSONResponse({"detail": "ScriptStudio can't reach its database right now. If this keeps happening, "
+                                   "the DATABASE_URL setting needs checking."}, status_code=503)
 
 
 @app.exception_handler(Exception)
