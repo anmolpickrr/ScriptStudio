@@ -92,7 +92,7 @@ main.content { padding: 36px 44px 90px; max-width: 1240px; width: 100%; min-widt
 }
 
 /* ---------------------------------------------------------------- cards & forms */
-.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; box-shadow: var(--shadow); }
+.card { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; }
 .card.flush { padding: 0; overflow: hidden; }
 .card.hover { transition: transform .18s, border-color .18s, box-shadow .18s; }
 .card.hover:hover { transform: translateY(-2px); border-color: var(--line-2); }
@@ -191,8 +191,37 @@ textarea.mono { font: 12px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, 
 .engine .radio { position: absolute; bottom: 14px; right: 14px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line-2); transition: all .18s; }
 .engine.on .radio { border-color: var(--accent); background: radial-gradient(var(--accent) 45%, transparent 50%); }
 
+/* ---------------------------------------------------------------- new-script: minimal, brief-shaped form */
+.form { min-width: 0; }
+.form-section { padding: 28px 0 30px; border-top: 1px solid var(--line); }
+.form-section:first-of-type { border-top: 0; }
+.sec-title { display: flex; align-items: center; gap: 12px; font: 600 18px var(--font-display); margin: 0 0 4px; }
+.sec-title .num { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font: 700 12px var(--font);
+  background: transparent; border: 1px solid var(--line-2); color: var(--text-2); transition: all .25s; flex: none; }
+.sec-title .num.done { background: var(--brand); border-color: transparent; color: #fff; box-shadow: 0 0 16px -4px rgba(123, 92, 245, .8); }
+.form .field { margin-top: 18px; }
+.form .grid2 .field { margin-top: 18px; }
+.writer { padding: 4px 0 26px; }
+.writer-label { font: 600 12px var(--font); letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); margin-bottom: 10px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-radius: 999px; background: var(--bg-1); border: 1px solid var(--line-2); max-width: 100%; }
+.seg button { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px 0 6px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-2); font-weight: 600; font-size: 13.5px; cursor: pointer; transition: background .2s, color .2s, box-shadow .2s; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--bg-3); color: #fff; box-shadow: inset 0 0 0 1px var(--accent-line), 0 6px 18px -8px rgba(96, 55, 215, .7); }
+.dotlogo { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 12px var(--font-display); color: #fff; flex: none; }
+.dotlogo.ss { background: var(--brand-gradient); } .dotlogo.gpt { background: #10a37f; } .dotlogo.claude { background: #d97757; }
+.seg .free { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ok); background: var(--ok-soft); padding: 2px 7px; border-radius: 999px; }
+.writer .hint { margin-top: 10px; }
+.summary-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; background: var(--bg-1); }
+.checklist li em { font-style: normal; color: var(--text-3); font-size: 11.5px; margin-left: auto; }
+@media (max-width: 560px) {
+  .seg { display: grid; grid-template-columns: 1fr; width: 100%; border-radius: 18px; }
+  .seg button { justify-content: flex-start; height: 44px; border-radius: 14px; }
+  .seg .free { margin-left: auto; }
+}
+
 /* ---------------------------------------------------------------- new-script layout */
-.compose { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.compose { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 48px; align-items: start; }
 .summary { position: sticky; top: 28px; }
 .summary dl { margin: 14px 0 18px; display: grid; grid-template-columns: auto 1fr; gap: 9px 12px; font-size: 13px; }
 .summary dt { color: var(--text-3); } .summary dd { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,209 +1,115 @@
-"""Deterministic script renderer.
+"""HTML renderer for the document outline.
 
-One HTML document serves two purposes: the in-app preview and the source
-that Google Drive converts into a native Google Doc. Inline styles only,
-because that is what the Docs importer reliably keeps.
+One HTML document serves two purposes: the in-app preview and the source that Google Drive converts into a
+native Google Doc. Inline styles only, because that is what the Docs importer reliably keeps.
 """
 from __future__ import annotations
 
 from html import escape
 
-from .. import playbook
 from ..house_format import FormatSpec
-from ..schemas import Flag, Job, QCReport, Script
+from ..schemas import Job
+from . import document as doc
+from .document import SEV_LABEL, SEV_ORDER, ts  # noqa: F401  (re-exported for the Word renderer and tests)
 
-SEV_ORDER = {"blocker": 0, "major": 1, "minor": 2, "info": 3}
-SEV_LABEL = {"blocker": "BLOCKER", "major": "IMPORTANT", "minor": "NOTE", "info": "FYI"}
+# Preview only (never sent to Google Docs): comfortable reading width, wide tables stack on phones.
+RESPONSIVE_CSS = """<style>
+body{margin:0;padding:40px 48px;max-width:860px}
+a{color:#1155cc}
+@media (max-width:720px){
+ body{padding:20px 18px}
+ .sw-stack,.sw-stack tbody,.sw-stack tr,.sw-stack td{display:block!important;width:auto!important}
+ .sw-stack tr:first-child{display:none!important}
+ .sw-stack tr{border:1px solid #ddd;border-radius:6px;margin:0 0 10px;overflow:hidden}
+ .sw-stack td{border:0!important;border-bottom:1px solid #eee!important}
+ .sw-stack td::before{content:attr(data-label);display:block;font-weight:bold;color:#666;font-size:10px;text-transform:uppercase}
+}
+</style>"""
 
 
 def _e(s) -> str:
     return escape(str(s or "")).replace("\n", "<br>")
 
 
-def _ts(sec: float) -> str:
-    sec = round(sec, 1)
-    m, s = divmod(sec, 60)
-    return f"{int(m)}:{s:04.1f}" if s % 1 else f"{int(m)}:{int(s):02d}"
-
-
-class _R:
+class _Styles:
     def __init__(self, spec: FormatSpec):
         st = spec.style
-        self.st = st
-        self.font = f"font-family:{st.font_family},sans-serif;"
-        self.p = f"{self.font}font-size:{st.body_pt}pt;line-height:1.4;margin:0 0 6pt 0;"
-        self.h1 = f"{self.font}font-size:{st.h1_pt}pt;font-weight:bold;color:{st.accent_hex};margin:0 0 4pt 0;"
-        self.h2 = (f"{self.font}font-size:{st.h2_pt}pt;font-weight:bold;color:{st.accent_hex};"
-                   f"margin:18pt 0 6pt 0;border-bottom:1px solid {st.accent_hex};padding-bottom:2pt;")
-        self.td = (f"{self.font}font-size:{st.body_pt - 0.5}pt;vertical-align:top;border:1px solid #B7C2CF;"
-                   f"padding:5pt;line-height:1.35;")
+        f = f"font-family:{st.font_family},Helvetica,sans-serif;"
+        self.body = f"{f}font-size:{st.body_pt}pt;line-height:1.15;color:#000;"
+        self.title = f"{f}font-size:{st.h1_pt}pt;font-weight:bold;color:{st.title_hex};margin:20pt 0 6pt 0;"
+        self.brand = f"{f}font-size:{st.h2_pt}pt;font-weight:bold;color:#000;margin:0 0 4pt 0;"
+        self.meta = f"{f}font-size:{st.body_pt - 1}pt;color:#666666;margin:0 0 6pt 0;"
+        self.h = f"{f}font-size:{st.h2_pt}pt;font-weight:bold;color:{st.accent_hex};margin:16pt 0 6pt 0;"
+        self.sub = f"{f}font-size:{st.body_pt}pt;font-weight:bold;color:#000;margin:10pt 0 2pt 0;"
+        self.ul = "margin:0 0 4pt 0;padding-left:24pt;"
+        self.li = f"{f}font-size:{st.body_pt}pt;line-height:1.3;margin:0 0 2pt 0;"
+        self.note = f"{f}font-size:{st.body_pt - 1}pt;color:#666666;margin:4pt 0;"
+        self.muted = "color:#999999;"
+        self.rule = f"border:0;border-top:1px solid {st.rule_hex};margin:14pt 0 4pt 0;"
+        self.td = f"{f}font-size:{st.body_pt - 1}pt;vertical-align:top;border:1px solid #bbbbbb;padding:4pt;"
         self.th = self.td + f"background:{st.table_header_bg};font-weight:bold;"
-        self.table = "border-collapse:collapse;width:100%;margin:4pt 0 8pt 0;"
-
-    def kv_table(self, rows: list[tuple[str, str]]) -> str:
-        body = "".join(f"<tr><td style='{self.th}width:24%'>{_e(k)}</td><td style='{self.td}'>{v}</td></tr>"
-                       for k, v in rows if v)
-        return f"<table style='{self.table}'>{body}</table>"
-
-    def bullets(self, items: list[str]) -> str:
-        if not items:
-            return f"<p style='{self.p}color:#777'>None.</p>"
-        lis = "".join(f"<li style='{self.p}'>{i}</li>" for i in items)
-        return f"<ul style='margin:0 0 6pt 18pt;padding:0'>{lis}</ul>"
 
 
-# Preview only (never sent to Google Docs): on narrow screens, wide tables become stacked cards.
-RESPONSIVE_CSS = """<style>
-body{margin:20px}
-@media (max-width:720px){
- body{margin:12px}
- .sw-stack,.sw-stack tbody,.sw-stack tr,.sw-stack td{display:block!important;width:auto!important}
- .sw-stack tr:first-child{display:none!important}
- .sw-stack tr{border:1px solid #B7C2CF;border-radius:6px;margin:0 0 10px;overflow:hidden}
- .sw-stack td{border:0!important;border-bottom:1px solid #EEF2F6!important}
- .sw-stack td:last-child{border-bottom:0!important}
- .sw-stack td::before{content:attr(data-label);display:block;font-weight:bold;color:#667;font-size:10px;
-   text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
-}
-</style>"""
+def _value(it: doc.Item, st: _Styles) -> str:
+    if isinstance(it.value, list):
+        inner = "".join(f"<li style='{st.li}'>{_link(v) }</li>" for v in it.value)
+        return f"<ul style='{st.ul}'>{inner}</ul>"
+    if it.muted:
+        return f"<span style='{st.muted}'>{_e(it.value)}</span>"
+    if it.link:
+        return f"<a href='{_e(it.link)}'>{_e(it.value)}</a>"
+    return _e(it.value)
+
+
+def _link(v: str) -> str:
+    v = str(v)
+    if v.startswith(("http://", "https://")) and " " not in v:
+        return f"<a href='{_e(v)}'>{_e(v)}</a>"
+    return _e(v)
+
+
+def _items(items: list[doc.Item], st: _Styles) -> str:
+    lis = "".join(f"<li style='{st.li}'>" + (f"<b>{_e(it.label)}:</b> " if it.label else "") + f"{_value(it, st)}</li>"
+                  for it in items)
+    return f"<ul style='{st.ul}'>{lis}</ul>"
+
+
+def _blocks(blocks: list, st: _Styles) -> str:
+    out, run = [], []
+    for bl in blocks + [None]:
+        if isinstance(bl, doc.Item):
+            run.append(bl)
+            continue
+        if run:
+            out.append(_items(run, st))
+            run = []
+        if isinstance(bl, doc.Sub):
+            out.append(f"<p style='{st.sub}'>{_e(bl.text)}</p>{_items(bl.items, st)}")
+        elif isinstance(bl, doc.Note):
+            out.append(f"<p style='{st.note}'>{_e(bl.text)}</p>")
+        elif isinstance(bl, doc.Table):
+            head = "".join(f"<th style='{st.th}'>{_e(h)}</th>" for h in bl.header)
+            rows = "".join("<tr>" + "".join(f"<td data-label='{_e(h)}' style='{st.td}'>{_e(c)}</td>"
+                                            for h, c in zip(bl.header, r)) + "</tr>" for r in bl.rows)
+            out.append(f"<table class='sw-stack' style='border-collapse:collapse;width:100%;'><tr>{head}</tr>{rows}</table>")
+    return "".join(out)
 
 
 def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True, responsive: bool = False) -> str:
-    s = job.script
-    assert s is not None
-    r = _R(spec)
-    plat = playbook.platform(job.inputs.platform)
-    blocks = {
-        "header": lambda: _header(r, job, s, plat),
-        "open_questions": lambda: _flags(r, job.flags),
-        "concept": lambda: _concept(r, s),
-        "characters": lambda: _characters(r, s),
-        "continuity": lambda: r.bullets([_e(c) for c in s.continuity]),
-        "product": lambda: _product(r, job, s),
-        "scenes": lambda: _scenes(r, s, spec),
-        "cta": lambda: r.kv_table([("Line", _e(s.cta.line)), ("Visual", _e(s.cta.visual)),
-                                   ("End-frame text", _e(s.cta.on_screen_text)), ("Action", _e(s.cta.action))]),
-        "production": lambda: r.bullets([_e(n) for n in s.production_notes]),
-        "qc": lambda: _qc(r, job.qc_history[-1]) if job.qc_history else "",
-    }
-    kicker = " · ".join(x for x in [job.dossier.brand if job.dossier else "", plat["label"],
-                                     f"{job.inputs.duration_sec}s"] if x)
-    parts = [f"<p style='{r.p}color:#667;text-transform:uppercase;letter-spacing:1px'>{_e(kicker)}</p>",
-             f"<h1 style='{r.h1}'>{_e(s.title)}</h1>",
-             f"<p style='{r.p}font-style:italic'>{_e(s.logline)}</p>"]
-    n = 0
-    for sec in spec.sections:
-        if sec.key == "qc" and not include_qc:
-            continue
-        if sec.key == "open_questions" and not job.flags:
-            continue
-        body = blocks.get(sec.key, lambda: "")()
-        if not body:
-            continue
-        n += 1
-        parts.append(f"<h2 style='{r.h2}'>{n}. {_e(sec.label)}</h2>{body}")
+    st = _Styles(spec)
+    parts = []
+    for n, part in enumerate(doc.build(job, spec, include_qc)):
+        if n:
+            parts.append(f"<hr style='{st.rule}border-top:2px solid {spec.style.accent_hex};margin-top:28pt;'>")
+        parts.append(f"<h1 style='{st.title}'>{_e(part.title)}</h1>")
+        if part.brand:
+            parts.append(f"<p style='{st.brand}'>BRAND: {_e(part.brand)}</p>")
+        if part.meta:
+            parts.append(f"<p style='{st.meta}'>{_e(part.meta)}</p>")
+        for sec in part.sections:
+            parts.append(f"<h3 style='{st.h}'>{sec.number}. {_e(sec.title)}</h3>{_blocks(sec.blocks, st)}"
+                         f"<hr style='{st.rule}'>")
     head = "<meta name='viewport' content='width=device-width, initial-scale=1'>" + RESPONSIVE_CSS if responsive else ""
-    return ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
-            f"<title>{_e(s.title)}</title>{head}</head><body style='{r.font}'>" + "".join(parts) + "</body></html>")
-
-
-def _header(r, job, s: Script, plat) -> str:
-    i = job.inputs
-    return r.kv_table([
-        ("Product", _e(job.dossier.name if job.dossier else "") + f" — <a href='{_e(i.product_url)}'>product page</a>"),
-        ("Platform / Format", _e(f"{plat['label']} · {i.aspect_ratio or plat['aspect']} · {i.duration_sec}s")),
-        ("Objective", _e(job.brief.objective if job.brief else "")),
-        ("Key message", _e(job.brief.key_message if job.brief else "")),
-        ("Audience", _e(s.audience)),
-        ("Tone", _e(s.tone)),
-        ("Hook type", _e(s.hook_type.replace("_", " ").title())),
-        ("Theme", _e(s.theme)),
-        ("Format", _e(f"{job.format_version}")),
-    ])
-
-
-def _flags(r, flags: list[Flag]) -> str:
-    rows = []
-    for f in sorted(flags, key=lambda f: SEV_ORDER[f.severity]):
-        if f.severity == "info":
-            continue
-        sug = f"<br><span style='color:#555'>→ {_e(f.suggestion)}</span>" if f.suggestion else ""
-        rows.append(f"<tr><td style='{r.td}width:14%;font-weight:bold;background:{r.st.flag_bg}'>"
-                    f"{SEV_LABEL[f.severity]}</td><td style='{r.td}'>{_e(f.message)}{sug}</td></tr>")
-    if not rows:
-        return ""
-    note = (f"<p style='{r.p}color:#8A4B00'>Resolve these with the client before the shoot. "
-            "The script avoids every unconfirmed detail.</p>")
-    return note + f"<table style='{r.table}'>{''.join(rows)}</table>"
-
-
-def _concept(r, s: Script) -> str:
-    return f"<p style='{r.p}'>{_e(s.concept_summary)}</p>"
-
-
-def _characters(r, s: Script) -> str:
-    if not s.characters:
-        return f"<p style='{r.p}'>No on-screen talent (product-only / hands-only).</p>"
-    head = "".join(f"<th style='{r.th}'>{h}</th>" for h in ("ID", "Character", "Role", "Description", "Keep consistent"))
-    rows = "".join(
-        f"<tr><td data-label='ID' style='{r.td}width:6%'><b>{_e(c.id)}</b></td>"
-        f"<td data-label='Character' style='{r.td}width:14%'>{_e(c.name)}</td>"
-        f"<td data-label='Role' style='{r.td}width:14%'>{_e(c.role)}</td>"
-        f"<td data-label='Description' style='{r.td}'>{_e(c.description)}</td>"
-        f"<td data-label='Keep consistent' style='{r.td}width:26%'>{_e(c.continuity)}</td></tr>" for c in s.characters)
-    return f"<table class='sw-stack' style='{r.table}'><tr>{head}</tr>{rows}</table>"
-
-
-def _product(r, job: Job, s: Script) -> str:
-    items = [f"<b>{_e(d.fact_id)}</b> — {_e(d.statement)}" for d in s.product_details]
-    pack = job.dossier.packaging_description if job.dossier else ""
-    out = r.bullets(items)
-    out += f"<p style='{r.p}'><b>Packaging:</b> {_e(pack) if pack else '[USE ACTUAL PACK — details not confirmed]'}</p>"
-    out += (f"<p style='{r.p}color:#667'>Source of truth: product page. "
-            "Every claim in the script maps to one of the facts above (see fact IDs in the scene table).</p>")
-    return out
-
-
-def _scenes(r, s: Script, spec: FormatSpec) -> str:
-    cols = spec.scene_columns
-    widths = {"#": "4%", "Time": "8%", "Visual": "34%", "VO / Dialogue": "28%", "On-screen Text": "14%", "SFX / Music": "12%"}
-    head = "".join(f"<th style='{r.th}width:{widths.get(c, 'auto')}'>{_e(c)}</th>" for c in cols)
-    rows = []
-    for sc in s.scenes:
-        visual = (f"<b>{_e(sc.shot)}</b><br>{_e(sc.location)}<br><br>{_e(sc.visual)}"
-                  + (f"<br><br><i>Props:</i> {_e(', '.join(sc.props))}" if sc.props else "")
-                  + (f"<br><i>Transition:</i> {_e(sc.transition)}" if sc.transition else ""))
-        audio = []
-        if sc.vo:
-            audio.append(f"<b>VO:</b> {_e(sc.vo)}")
-        names = {c.id: c.name for c in s.characters}
-        for d in sc.dialogue:
-            deliv = f" <i>({_e(d.delivery)})</i>" if d.delivery else ""
-            audio.append(f"<b>{_e(names.get(d.character_id, d.character_id)).upper()}</b>{deliv}: {_e(d.line)}")
-        if sc.sync_note:
-            audio.append(f"<span style='color:#667'>Sync: {_e(sc.sync_note)}</span>")
-        if sc.product_fact_ids:
-            audio.append(f"<span style='color:#667'>Facts: {_e(', '.join(sc.product_fact_ids))}</span>")
-        cells = {
-            "#": f"<b>{sc.number}</b>",
-            "Time": f"{_ts(sc.start_sec)}–{_ts(sc.end_sec)}",
-            "Visual": visual,
-            "VO / Dialogue": "<br><br>".join(audio) or "—",
-            "On-screen Text": _e(sc.on_screen_text) or "—",
-            "SFX / Music": _e(sc.sfx_music) or "—",
-        }
-        rows.append("<tr>" + "".join(f"<td data-label='{_e(c)}' style='{r.td}'>{cells.get(c, '')}</td>"
-                                     for c in cols) + "</tr>")
-    return f"<table class='sw-stack' style='{r.table}'><tr>{head}</tr>{''.join(rows)}</table>"
-
-
-def _qc(r, qc: QCReport) -> str:
-    score_rows = [(k.replace("_", " ").title(), f"{v}/5") for k, v in qc.scores.items()]
-    out = r.kv_table(score_rows) if score_rows else ""
-    status = "Passed all quality gates" if qc.passed else "Did not pass every gate — editor review required"
-    out += f"<p style='{r.p}'><b>{status}</b> after {qc.iteration} review round(s). {_e(qc.summary)}</p>"
-    open_items = [f for f in qc.findings if f.severity in ("blocker", "major")]
-    if open_items:
-        out += r.bullets([f"{SEV_LABEL[f.severity]} — {'Scene ' + str(f.scene) + ': ' if f.scene else ''}"
-                          f"{_e(f.message)}" for f in open_items])
-    return out
+    title = _e(job.script.title if job.script else "Script")
+    return (f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>{head}</head>"
+            f"<body style='{st.body}'>" + "".join(parts) + "</body></html>")

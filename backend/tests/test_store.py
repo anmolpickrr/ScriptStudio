@@ -46,7 +46,7 @@ def test_jobs_roundtrip_owner_filter_and_order(store):
 def test_format_versioning(store):
     spec = store.get_format("house-v1")
     spec.editorial_notes.append("Keep it tight.")
-    assert store.save_format(spec).version == 2
+    assert store.save_format(spec).version == DEFAULT_FORMAT.version + 1
     assert store.get_format("house-v1").editorial_notes[-1] == "Keep it tight."
     with pytest.raises(KeyError):
         store.get_format("nope")

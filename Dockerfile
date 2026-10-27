@@ -9,7 +9,7 @@ RUN npm run build
 # ---- 2. Python API that also serves the built frontend
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
-    APP_ENV=production STATIC_DIR=/srv/static PORT=8080 WEB_CONCURRENCY=1
+    APP_ENV=production STATIC_DIR=/srv/static PORT=8080 WEB_CONCURRENCY=1 HOME=/srv
 WORKDIR /srv
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt

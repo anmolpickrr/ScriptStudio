@@ -33,6 +33,8 @@ export interface JobInputs {
   hook_type: string | null; theme: string | null; target_audience: string; tone: string; language: string;
   mandatories: string[]; exclusions: string[]; brand_name: string | null; format_id: string; concept_count: number;
   engine: Engine;
+  logo_url: string; brand_guidelines_url: string; asset_links: string[]; ad_type: string; headline_ideas: string[];
+  key_usps: string[]; offer: string; cta: string; design_style: string; elements_to_highlight: string[];
 }
 
 export interface Flag { severity: Severity; area: string; message: string; suggestion: string }

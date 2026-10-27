@@ -46,6 +46,17 @@ class JobInputs(BaseModel):
     mandatories: list[Short] = Field([], max_length=15)  # must-say lines, legal supers, hashtags
     exclusions: list[Short] = Field([], max_length=30)   # words, claims or visuals the client has ruled out
     brand_name: Optional[Short] = None
+    # Creative-brief fields (mirroring the team's brief template; all optional)
+    logo_url: str = Field("", max_length=2000)
+    brand_guidelines_url: str = Field("", max_length=2000)
+    asset_links: list[Annotated[str, Field(max_length=2000)]] = Field([], max_length=10)  # raw/clicked product images/videos
+    ad_type: Short = "Video"
+    headline_ideas: list[Short] = Field([], max_length=10)
+    key_usps: list[Short] = Field([], max_length=15)
+    offer: Short = ""
+    cta: Short = ""
+    design_style: Short = ""
+    elements_to_highlight: list[Short] = Field([], max_length=15)
     format_id: str = Field("house-v1", max_length=60)
     concept_count: int = Field(3, ge=1, le=5)
     # auto = ScriptStudio's built-in AI pipeline; chatgpt / claude = the user runs one prompt in their own
@@ -212,6 +223,10 @@ class ProductDetail(BaseModel):
 class Script(BaseModel):
     title: str
     logline: str
+    headline_options: list[str] = []      # 2–3 headline / hook-line options for supers and post copy
+    supporting_copy: str = ""             # sub-headline / caption copy
+    visual_style: str = ""                # design style in one line (look, light, camera feel)
+    elements_to_highlight: list[str] = [] # product moments, benefits, lifestyle shots to feature
     concept_summary: str
     hook_type: str
     theme: str

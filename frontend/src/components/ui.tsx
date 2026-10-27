@@ -179,5 +179,6 @@ export const Icon = {
   copy: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>,
   ext: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>,
   spark: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></svg>,
+  upload: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>,
   down: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="m6 9 6 6 6-6" /></svg>,
 };

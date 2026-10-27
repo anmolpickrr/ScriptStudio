@@ -74,6 +74,7 @@ class Pipeline:
             parts.append(f"THEME: {i.theme}")
         if i.creative_direction:
             parts.append(f"CREATIVE DIRECTION: {i.creative_direction}")
+        parts += brief_field_lines(i)
         if spec.editorial_notes:
             parts.append("HOUSE EDITORIAL NOTES:\n" + "\n".join(f"- {n}" for n in spec.editorial_notes))
         blockers = [f for f in job.flags if f.severity in ("blocker", "major")]
@@ -268,6 +269,21 @@ class Pipeline:
         _, job.script, final = best
         if job.qc_history[-1] is not final:
             job.qc_history.append(final.model_copy(update={"summary": final.summary + " (best version kept)"}))
+
+
+def brief_field_lines(i) -> list[str]:
+    """The structured creative-brief fields, as prompt lines (only the ones filled in)."""
+    out = [f"AD TYPE: {i.ad_type}"] if i.ad_type else []
+    for label, val in (("OFFER (from the client)", i.offer), ("CTA (from the client)", i.cta),
+                       ("DESIGN STYLE", i.design_style)):
+        if val:
+            out.append(f"{label}: {val}")
+    for label, vals in (("CLIENT HEADLINE IDEAS", i.headline_ideas),
+                        ("CLIENT KEY USPs (messaging priorities; product claims still need a verified fact)", i.key_usps),
+                        ("ELEMENTS TO HIGHLIGHT", i.elements_to_highlight)):
+        if vals:
+            out.append(f"{label}: " + "; ".join(vals))
+    return out
 
 
 def _friendly(e: Exception) -> str:

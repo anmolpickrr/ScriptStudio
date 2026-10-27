@@ -74,6 +74,8 @@ def _inputs_block(job: Job) -> str:
                        ("CREATIVE DIRECTION", i.creative_direction)):
         if val:
             lines.append(f"{label}: {val}")
+    from .pipeline import brief_field_lines
+    lines += brief_field_lines(i)
     if i.mandatories:
         lines.append("MANDATORIES (include verbatim): " + json.dumps(i.mandatories, ensure_ascii=False))
     if i.exclusions:
@@ -108,6 +110,8 @@ FORMAT RULES
 - `sync_note` = one line on why the picture belongs with the words.
 - `continuity` = wardrobe, props, product state, time of day — everything that must match between scenes.
 - The CTA is delivered in the final scene and matches the brief and platform.
+- `headline_options`: 2–3 short headline options (≤8 words). `supporting_copy`: 1–2 sentences of caption copy.
+  `visual_style`: the look in one line. `elements_to_highlight`: 3–5 moments/benefits the edit must feature.
 - House editorial rules: {"; ".join(spec.editorial_notes) or "none"}
 {prompts.CRAFT}
 CLIENT BRIEF (source of truth for objective, message, tone and outcome):

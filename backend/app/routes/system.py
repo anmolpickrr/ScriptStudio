@@ -130,6 +130,32 @@ def options(user: User = Depends(current_user)):
                 {"id": f.id, "name": f.name, "version": f.version} for f in get_store().list_formats()]}
 
 
+# ---------------------------------------------------------------- brief import
+
+class BriefUpload(BaseModel):
+    filename: str = Field(max_length=300)
+    data_base64: str = Field(max_length=7_000_000)
+
+
+@router.post("/api/brief/import")
+def import_brief(body: BriefUpload, user: User = Depends(current_user)):
+    """Fill the New script form from a brief .docx (e.g. the Creative Brief template from Google Docs)."""
+    import base64
+    from ..brief_import import BriefImportError, parse_brief_docx
+    if not body.filename.lower().endswith(".docx"):
+        raise HTTPException(422, "Upload a .docx file. In Google Docs: File → Download → Microsoft Word (.docx).")
+    try:
+        data = base64.b64decode(body.data_base64, validate=True)
+        result = parse_brief_docx(data)
+    except BriefImportError as e:
+        raise HTTPException(422, str(e))
+    except ValueError:
+        raise HTTPException(422, "That file couldn't be read.")
+    if not result["has_content"]:
+        raise HTTPException(422, "This looks like an empty template — fill in the brief first, then upload it.")
+    return result
+
+
 # ---------------------------------------------------------------- house library & format
 
 @router.get("/api/library")

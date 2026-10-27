@@ -180,15 +180,18 @@ def test_global_daily_cap(client, monkeypatch):
 def test_docx_export_follows_house_format(client):
     import io
     from docx import Document
-    jid = client.post("/api/jobs", json=BODY, headers=H).json()["id"]
+    jid = client.post("/api/jobs", json={**BODY, "offer": "Flat 10% off", "design_style": "Creator-shot UGC"}, headers=H).json()["id"]
     r = client.get(f"/api/jobs/{jid}/docx")
     assert r.status_code == 200 and r.headers["content-disposition"].endswith('.docx"')
     d = Document(io.BytesIO(r.content))
-    headings = [p.text for p in d.paragraphs if p.style.name == "Heading 1"]
-    assert headings[0] == "1. Project Overview" and any("Scene-by-Scene" in h for h in headings)
-    scene_table = next(t for t in d.tables if t.rows[0].cells[0].text == "#")
-    assert len(scene_table.rows) == 5  # header + 4 scenes
-    assert "Shop now on brewly.in" in scene_table.rows[-1].cells[3].text
+    text = [p.text for p in d.paragraphs]
+    assert text[0] == "Creative Brief" and text[1].startswith("BRAND:")
+    assert "1. Basic Information" in text and "6. Visual Direction" in text and "5. Scene-by-Scene Script" in text
+    assert "Offer: Flat 10% off" in text and "Design Style: Creator-shot UGC" in text
+    bullets = [p for p in d.paragraphs if p.style.name == "List Bullet"]
+    assert bullets and bullets[0].runs[0].bold and bullets[0].runs[0].text == "Product Link: "
+    assert d.sections[0].page_width < d.sections[0].page_height  # portrait, like the template
+    assert any(t.startswith("Scene 4") for t in text) and any("Shop now on brewly.in" in t for t in text)
 
 
 def test_preview_is_responsive(client):

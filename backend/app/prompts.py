@@ -129,6 +129,10 @@ Format obligations
 - `product_details`: the verified facts the script uses, with their ids.
 - The CTA is in the final scene (VO or on-screen) and matches the brief's CTA intent and platform style.
 - `production_notes`: casting, location, props sourcing, music direction, safe-zone and legal super notes.
+- `headline_options`: 2–3 short headline / hook-line options (max 8 words each) for supers and post copy.
+  Only verified facts and the brief's messaging. `supporting_copy`: one or two sentences of caption copy.
+- `visual_style`: the look in one line (e.g. "creator-shot, handheld, warm morning daylight, real kitchen").
+- `elements_to_highlight`: the 3–5 product moments, benefits or lifestyle shots the edit must feature.
 - Include every mandatory line exactly as given. Never include anything on the exclusions list.
 """ + CRAFT
 

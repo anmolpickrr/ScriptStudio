@@ -54,11 +54,13 @@ def test_stuck_script_goes_to_needs_review_and_keeps_best(tmp_path):
 def test_render_follows_format_order_and_shows_flags(tmp_path):
     job, _, _ = run(tmp_path)
     html = render_script_html(job, DEFAULT_FORMAT)
-    labels = [s.label for s in DEFAULT_FORMAT.sections if s.key not in ("open_questions",)]
-    pos = [html.find(l.replace("&", "&amp;")) for l in labels]
-    assert all(p > 0 for p in pos) and pos == sorted(pos)
-    assert "Open Questions" in html and "withheld" in html
-    assert "Riya".upper() in html and "0:06–0:12" in html
+    # part 1 mirrors the creative-brief template, part 2 is the script; headings are numbered within each part
+    for heading in ("1. Basic Information", "6. Visual Direction", "1. Concept", "5. Scene-by-Scene Script"):
+        assert f">{heading.replace('&', '&amp;')}</h3>" in html, heading
+    order = [html.find(t) for t in (">Creative Brief<", "BRAND: Brewly", "Product Link:", "Call-To-Action (CTA):",
+                                    "Video Script", "Scene 1", "Scene 4", "Open Questions for the Client")]
+    assert all(p > 0 for p in order) and order == sorted(order)
+    assert "withheld" in html and "Dialogue — Riya" in html and "0:06–0:12" in html
 
 
 def test_approval_feeds_style_memory(tmp_path):
@@ -77,9 +79,9 @@ def test_google_doc_export_converts_html(tmp_path):
         seen.append(req)
         if "upload" in str(req.url):
             body = req.content.decode()
-            assert '"mimeType": "application/vnd.google-apps.document"' in body and "<table" in body
+            assert '"mimeType": "application/vnd.google-apps.document"' in body and "<ul" in body
             return httpx.Response(200, json={"id": "doc123", "webViewLink": "https://docs.google.com/document/d/doc123/edit"})
-        assert json.loads(req.content)["requests"][0]["updateDocumentStyle"]["documentStyle"]["pageSize"]["width"]["magnitude"] == 842
+        assert json.loads(req.content)["requests"][0]["updateDocumentStyle"]["documentStyle"]["pageSize"]["width"]["magnitude"] == 612
         return httpx.Response(200, json={})
 
     url = export_to_google_doc("t", render_script_html(job, DEFAULT_FORMAT), DEFAULT_FORMAT, user_token="tok",

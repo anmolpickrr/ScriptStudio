@@ -35,14 +35,14 @@ def _token(user_token: Optional[str]) -> str:
 
 
 def page_setup_requests(spec: FormatSpec) -> list[dict]:
-    # A4 in points; swap for landscape so the scene table has room.
-    w, h = (842, 595) if spec.style.landscape else (595, 842)
+    # US Letter in points with 1" margins, like the team's brief template; swapped for landscape.
+    w, h = (792, 612) if spec.style.landscape else (612, 792)
     return [{
         "updateDocumentStyle": {
             "documentStyle": {
                 "pageSize": {"width": {"magnitude": w, "unit": "PT"}, "height": {"magnitude": h, "unit": "PT"}},
-                "marginTop": {"magnitude": 36, "unit": "PT"}, "marginBottom": {"magnitude": 36, "unit": "PT"},
-                "marginLeft": {"magnitude": 36, "unit": "PT"}, "marginRight": {"magnitude": 36, "unit": "PT"},
+                "marginTop": {"magnitude": 72, "unit": "PT"}, "marginBottom": {"magnitude": 72, "unit": "PT"},
+                "marginLeft": {"magnitude": 72, "unit": "PT"}, "marginRight": {"magnitude": 72, "unit": "PT"},
             },
             "fields": "pageSize,marginTop,marginBottom,marginLeft,marginRight",
         }
