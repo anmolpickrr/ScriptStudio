@@ -27,16 +27,20 @@ jobs:
         run: |
           BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
           for i in $(seq 1 12); do curl -fsS -m 30 "$BASE/api/health" && break || sleep 10; done   # wake sleeping instances
-          for path in / /api/health /api/config; do
-            code=$(curl -sS -m 30 -o body.txt -w "%{http_code} %{content_type} server=%header{server} x-render-routing=%header{x-render-routing}" "$BASE$path" 2>err.txt || true)
-            body=$(head -c 300 body.txt | tr '\n\r' '  ')
-            echo "::notice title=GET $path::$code | $(cat err.txt | tr '\n' ' ') | $body"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          for path in / /new /favicon.svg /api/health /api/config; do
+            name=$(echo "$path" | tr '/' '_')
+            info=$(curl -sS -m 60 -A "$UA" -H "Accept: text/html,application/json" -o "body$name" -D "hdr$name" \
+                   -w "%{http_code} %{content_type} %{size_download}B %{time_total}s" "$BASE$path" 2>&1 || true)
+            body=$(head -c 200 "body$name" 2>/dev/null | tr -cd '[:alnum:] {}":,._=-' )
+            echo "::notice title=GET$name::$info | $body"
           done
 
       - name: Page and API respond
         run: |
           set -eu
-          curl -fsS -m 60 -o index.html "$BASE/"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          curl -fsS -m 60 -A "$UA" -o index.html "$BASE/"
           grep -q 'id="root"' index.html && echo "✓ frontend served ($(stat -c%s index.html) bytes)"
           asset=$(grep -o '/assets/[^"]*\.js' index.html | head -1)
           curl -fsS -m 60 -o /dev/null "$BASE$asset" && echo "✓ app bundle $asset"
