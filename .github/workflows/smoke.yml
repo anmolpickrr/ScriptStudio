@@ -15,6 +15,9 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: write   # the last step saves raw results to the "smoke-results" branch
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -34,6 +37,7 @@ jobs:
                    -w "%{http_code} %{content_type} %{size_download}B %{time_total}s" "$BASE$path" 2>&1 || true)
             body=$(head -c 200 "body$name" 2>/dev/null | tr -cd '[:alnum:] {}":,._=-' )
             echo "::notice title=GET$name::$info | $body"
+            echo "GET $path -> $info" >> diag.txt
           done
 
       - name: Page and API respond
@@ -86,3 +90,13 @@ jobs:
             script.docx
             result.json
           if-no-files-found: ignore
+
+      - name: Save raw results to the smoke-results branch
+        if: always()
+        run: |
+          mkdir -p out && cp -f diag.txt hdr_* body_* config.json options.json result.json out/ 2>/dev/null || true
+          for f in out/body_*; do [ -f "$f" ] && head -c 4000 "$f" > "$f.txt" && rm "$f"; done
+          echo "run ${{ github.run_id }} at $(date -u)" > out/RUN.txt
+          cd out && git init -q && git checkout -q -b smoke-results && git add -A
+          git -c user.name=smoke -c user.email=smoke@users.noreply.github.com commit -qm "smoke ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" smoke-results
