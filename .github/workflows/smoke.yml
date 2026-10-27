@@ -35,11 +35,15 @@ jobs:
 
       - name: Page and API respond
         run: |
-          set -euo pipefail
-          curl -fsS "$BASE/" | grep -q '<div id="root">' && echo "✓ frontend served"
-          curl -fsS -c jar -b jar "$BASE/api/config" | tee config.json; echo
-          jq -e '.demo_mode == false' config.json >/dev/null || echo "::warning::Instance is in demo mode (no AI model)"
-          curl -fsS -c jar -b jar "$BASE/api/options" | jq -e '.platforms | length > 3' >/dev/null && echo "✓ options"
+          set -eu
+          curl -fsS -m 60 -o index.html "$BASE/"
+          grep -q 'id="root"' index.html && echo "✓ frontend served ($(stat -c%s index.html) bytes)"
+          asset=$(grep -o '/assets/[^"]*\.js' index.html | head -1)
+          curl -fsS -m 60 -o /dev/null "$BASE$asset" && echo "✓ app bundle $asset"
+          curl -fsS -m 60 -c jar -b jar -o config.json "$BASE/api/config"; cat config.json; echo
+          jq -e '.demo_mode == false' config.json >/dev/null && echo "✓ real AI model configured" || echo "::warning::Instance is in demo mode (no AI model)"
+          curl -fsS -m 60 -c jar -b jar -o options.json "$BASE/api/options"
+          jq -e '(.platforms | length) > 3' options.json >/dev/null && echo "✓ options"
 
       - name: Generate a script from a real product page
         if: ${{ inputs.generate }}
