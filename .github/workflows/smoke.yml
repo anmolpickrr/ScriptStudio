@@ -23,11 +23,19 @@ jobs:
       BASE: ${{ inputs.url }}
       PRODUCT: ${{ inputs.product_url }}
     steps:
+      - name: Diagnose
+        run: |
+          BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
+          for i in $(seq 1 12); do curl -fsS -m 30 "$BASE/api/health" && break || sleep 10; done   # wake sleeping instances
+          for path in / /api/health /api/config; do
+            code=$(curl -sS -m 30 -o body.txt -w "%{http_code} %{content_type} server=%header{server} x-render-routing=%header{x-render-routing}" "$BASE$path" 2>err.txt || true)
+            body=$(head -c 300 body.txt | tr '\n\r' '  ')
+            echo "::notice title=GET $path::$code | $(cat err.txt | tr '\n' ' ') | $body"
+          done
+
       - name: Page and API respond
         run: |
           set -euo pipefail
-          BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
-          for i in $(seq 1 12); do curl -fsS "$BASE/api/health" && break || sleep 10; done   # wake sleeping instances
           curl -fsS "$BASE/" | grep -q '<div id="root">' && echo "✓ frontend served"
           curl -fsS -c jar -b jar "$BASE/api/config" | tee config.json; echo
           jq -e '.demo_mode == false' config.json >/dev/null || echo "::warning::Instance is in demo mode (no AI model)"
