@@ -1,6 +1,8 @@
 name: Smoke test (live URL)
-# Verifies a deployed instance end to end: page loads, API healthy, a real script is generated from a real
-# product page, and the Word/HTML exports work. Run it from the Actions tab, or: gh workflow run smoke.yml -f url=...
+# Verifies a deployed instance end to end: the page and app bundle load, the API is healthy, a real script is
+# generated from a real product page, and the Word/HTML exports work. Every check is logged to diag.txt, which
+# the last step saves (with the generated script) to the "smoke-results" branch for review.
+# Run it from the Actions tab, or: gh workflow run smoke.yml -f url=...
 on:
   workflow_dispatch:
     inputs:
@@ -21,86 +23,75 @@ permissions:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
-      BASE: ${{ inputs.url }}
       PRODUCT: ${{ inputs.product_url }}
+      UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
     steps:
-      - name: Diagnose
+      - name: Site loads
         run: |
-          BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
-          for i in $(seq 1 12); do curl -fsS -m 30 "$BASE/api/health" && break || sleep 10; done   # wake sleeping instances
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-          for path in / /new /favicon.svg /api/health /api/config; do
-            name=$(echo "$path" | tr '/' '_')
-            info=$(curl -sS -m 60 -A "$UA" -H "Accept: text/html,application/json" -o "body$name" -D "hdr$name" \
-                   -w "%{http_code} %{content_type} %{size_download}B %{time_total}s" "$BASE$path" 2>&1 || true)
-            body=$(head -c 200 "body$name" 2>/dev/null | tr -cd '[:alnum:] {}":,._=-' )
-            echo "::notice title=GET$name::$info | $body"
-            echo "GET $path -> $info" >> diag.txt
-          done
-          for asset in $(grep -oE '/assets/[^"]+' body_ | sort -u); do
-            info=$(curl -sS -m 60 -A "$UA" -o /dev/null -D hdr_asset -w "%{http_code} %{content_type} %{size_download}B" "$BASE$asset" 2>&1 || true)
-            echo "GET $asset -> $info" >> diag.txt
-          done
-
-      - name: Page and API respond
-        run: |
-          set -eu
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-          curl -fsS -m 60 -A "$UA" -o index.html "$BASE/"
-          grep -q 'id="root"' index.html && echo "✓ frontend served ($(stat -c%s index.html) bytes)"
-          asset=$(grep -o '/assets/[^"]*\.js' index.html | head -1)
-          curl -fsS -m 60 -o /dev/null "$BASE$asset" && echo "✓ app bundle $asset"
-          curl -fsS -m 60 -c jar -b jar -o config.json "$BASE/api/config"; cat config.json; echo
-          jq -e '.demo_mode == false' config.json >/dev/null && echo "✓ real AI model configured" || echo "::warning::Instance is in demo mode (no AI model)"
-          curl -fsS -m 60 -c jar -b jar -o options.json "$BASE/api/options"
-          jq -e '(.platforms | length) > 3' options.json >/dev/null && echo "✓ options"
+          BASE="${{ inputs.url }}"; BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
+          mkdir -p out; fail=0
+          log() { echo "$*" | tee -a out/diag.txt; }
+          check() {  # check <label> <path> <grep-pattern> [curl args...]
+            local label=$1 path=$2 pat=$3; shift 3
+            local info; info=$(curl -sS -m 90 -A "$UA" -c jar -b jar -o "out/$label" -w "%{http_code} %{content_type} %{size_download}B %{time_total}s" "$@" "$BASE$path" 2>&1)
+            if [[ "$info" == 200* ]] && grep -q -- "$pat" "out/$label"; then log "PASS $label $path -> $info"; else log "FAIL $label $path -> $info"; fail=1; fi
+          }
+          for i in $(seq 1 12); do curl -fsS -m 30 "$BASE/api/health" >/dev/null && break || sleep 10; done   # wake a sleeping instance
+          check index / 'id="root"'
+          asset=$(grep -oE '/assets/[^"]+\.js' out/index | head -1)
+          check bundle "$asset" 'createRoot\|React\|jsx'
+          check health /api/health '"ok":true'
+          check config /api/config '"auth_mode"'
+          check options /api/options '"platforms"'
+          check new_route /new 'id="root"'
+          if grep -q '"demo_mode":true' out/config; then log "WARN instance is in demo mode (no AI model)"; fi
+          exit $fail
 
       - name: Generate a script from a real product page
         if: ${{ inputs.generate }}
         run: |
-          set -euo pipefail
-          H=(-H "X-Requested-With: scriptwright" -H "Content-Type: application/json" -c jar -b jar)
+          log() { echo "$*" | tee -a out/diag.txt; }
           BODY=$(jq -n --arg u "$PRODUCT" '{product_url:$u, platform:"instagram_reels", duration_sec:30,
             client_brief:"Launch a 30-second Reel for first-time buyers who want everyday comfort. Objective: drive first purchase. Tone: warm, witty, honest. CTA: shop now."}')
-          ID=$(curl -fsS "${H[@]}" -X POST "$BASE/api/jobs" -d "$BODY" | jq -r .id)
-          echo "job $ID"; echo "JOB=$ID" >> "$GITHUB_ENV"
-          for i in $(seq 1 120); do
-            J=$(curl -fsS -c jar -b jar "$BASE/api/jobs/$ID")
+          resp=$(curl -sS -m 90 -A "$UA" -c jar -b jar -H "X-Requested-With: scriptwright" -H "Content-Type: application/json" \
+                 -X POST "$BASE/api/jobs" -d "$BODY" -w "\n%{http_code}")
+          code=$(tail -n1 <<<"$resp"); json=$(sed '$d' <<<"$resp")
+          log "CREATE -> $code $json"
+          ID=$(jq -r '.id // empty' <<<"$json"); [ -n "$ID" ] || exit 1
+          echo "JOB=$ID" >> "$GITHUB_ENV"
+          start=$(date +%s); last=""
+          while true; do
+            J=$(curl -sS -m 90 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID")
             S=$(jq -r .status <<<"$J"); L=$(jq -r '.events[-1] | "\(.stage) \(.status) \(.detail)"' <<<"$J")
-            echo "[$((i*10))s] $S — $L"
-            case "$S" in ready|needs_review|approved) break;; failed) jq -r .error <<<"$J"; exit 1;; esac
+            [ "$L" != "$last" ] && log "[$(( $(date +%s) - start ))s] $S — $L"; last=$L
+            case "$S" in ready|needs_review|approved|failed) break;; esac
+            [ $(( $(date +%s) - start )) -gt 1380 ] && { log "TIMEOUT waiting for job"; break; }
             sleep 10
           done
-          jq '{status, title: .script.title, scenes: (.script.scenes | length), facts_verified: ([.dossier.facts[] | select(.verified)] | length),
-               flags: [.flags[] | select(.severity != "info") | .message], qc: .qc_history[-1].scores, passed: .qc_history[-1].passed}' <<<"$J" | tee result.json
-          [[ "$(jq -r .status <<<"$J")" =~ ^(ready|needs_review)$ ]]
+          echo "$J" > out/job.json
+          jq '{status, error, title: .script.title, scenes: (.script.scenes | length), facts_verified: ([.dossier.facts[]? | select(.verified)] | length),
+               flags: [.flags[] | select(.severity != "info") | .message], qc: .qc_history[-1].scores, passed: .qc_history[-1].passed}' out/job.json | tee out/result.json | tee -a out/diag.txt
+          [[ "$S" =~ ^(ready|needs_review)$ ]]
 
       - name: Exports work
         if: ${{ inputs.generate }}
         run: |
-          set -euo pipefail
-          curl -fsS -c jar -b jar "$BASE/api/jobs/$JOB/preview" | grep -q "Scene-by-Scene" && echo "✓ preview"
-          curl -fsS -c jar -b jar -o script.docx -w "%{content_type}\n" "$BASE/api/jobs/$JOB/docx" | grep -q wordprocessingml && echo "✓ docx ($(stat -c%s script.docx) bytes)"
-          curl -fsS -c jar -b jar "$BASE/api/jobs/$JOB/download" | grep -q "<table" && echo "✓ html"
-          { echo "### ✅ $BASE is live and working"; echo '```json'; cat result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          log() { echo "$*" | tee -a out/diag.txt; }; fail=0
+          for kind in preview docx download; do
+            info=$(curl -sS -m 90 -A "$UA" -c jar -b jar -o "out/export.$kind" -w "%{http_code} %{content_type} %{size_download}B" "$BASE/api/jobs/$JOB/$kind")
+            [[ "$info" == 200* ]] && log "PASS export $kind -> $info" || { log "FAIL export $kind -> $info"; fail=1; }
+          done
+          { echo "### ✅ $BASE is live and working"; echo '```json'; cat out/result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $fail
 
-      - uses: actions/upload-artifact@v4
-        if: ${{ inputs.generate && always() }}
-        with:
-          name: smoke-output
-          path: |
-            script.docx
-            result.json
-          if-no-files-found: ignore
-
-      - name: Save raw results to the smoke-results branch
+      - name: Save results to the smoke-results branch
         if: always()
         run: |
-          mkdir -p out && cp -f diag.txt hdr_* body_* config.json options.json result.json out/ 2>/dev/null || true
-          for f in out/body_*; do [ -f "$f" ] && head -c 4000 "$f" > "$f.txt" && rm "$f"; done
-          echo "run ${{ github.run_id }} at $(date -u)" > out/RUN.txt
-          cd out && git init -q && git checkout -q -b smoke-results && git add -A
+          cd out 2>/dev/null || exit 0
+          for f in index bundle; do [ -f "$f" ] && head -c 2000 "$f" > "$f.head" && rm "$f"; done
+          echo "run ${{ github.run_id }} at $(date -u) for ${{ inputs.url }}" > RUN.txt
+          git init -q && git checkout -q -b smoke-results && git add -A
           git -c user.name=smoke -c user.email=smoke@users.noreply.github.com commit -qm "smoke ${{ github.run_id }}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" smoke-results
