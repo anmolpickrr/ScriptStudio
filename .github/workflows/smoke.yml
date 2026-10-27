@@ -39,6 +39,10 @@ jobs:
             echo "::notice title=GET$name::$info | $body"
             echo "GET $path -> $info" >> diag.txt
           done
+          for asset in $(grep -oE '/assets/[^"]+' body_ | sort -u); do
+            info=$(curl -sS -m 60 -A "$UA" -o /dev/null -D hdr_asset -w "%{http_code} %{content_type} %{size_download}B" "$BASE$asset" 2>&1 || true)
+            echo "GET $asset -> $info" >> diag.txt
+          done
 
       - name: Page and API respond
         run: |
