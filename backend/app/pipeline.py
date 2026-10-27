@@ -275,8 +275,9 @@ def _friendly(e: Exception) -> str:
     low = msg.lower()
     if "api key" in low or "401" in low or "authentication" in low:
         return "The AI service rejected our credentials. An admin needs to check OPENAI_API_KEY."
-    if "429" in low or "rate limit" in low or "quota" in low:
-        return "The AI service is rate-limiting us or the account is out of credit. Try again in a few minutes."
+    if "429" in low or "rate limit" in low or "quota" in low or "resource_exhausted" in low:
+        return ("The AI service's usage limit was reached (free tiers allow a set number of requests per minute "
+                "and per day). Try again in a few minutes, or tomorrow if the daily limit is used up.")
     if "model" in low and ("not found" in low or "does not exist" in low):
         return f"The configured AI model isn't available on this account ({msg[:160]})."
     return msg[:500]

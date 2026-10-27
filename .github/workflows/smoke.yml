@@ -11,7 +11,7 @@ on:
         description: "A public product page to generate from"
         default: "https://www.allbirds.com/products/mens-tree-runners"
       generate:
-        description: "Run a full generation (uses OpenAI credits)"
+        description: "Run a full generation (uses one script of AI quota)"
         type: boolean
         default: true
 

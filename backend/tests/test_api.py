@@ -132,7 +132,7 @@ def test_failed_model_call_marks_job_failed_with_readable_error(tmp_path):
     h["concepts"] = lambda **_: (_ for _ in ()).throw(RuntimeError("Error code: 429 - rate limit"))
     job = Pipeline(FakeLLM(h), s, page_override=product.parse_html(BODY["product_url"], PRODUCT_HTML)).run(
         Job(id="f1", inputs=JobInputs(**BODY)))
-    assert job.status == "failed" and "rate-limiting" in job.error
+    assert job.status == "failed" and "usage limit" in job.error
 
 
 def test_security_headers_and_spa_fallback(client):

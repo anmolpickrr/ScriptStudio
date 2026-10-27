@@ -1,84 +1,101 @@
-# Deployment guide
+# Deployment guide (free, no card)
 
-There are two supported hosts. Both run the same Docker image, which serves the web app and the API from a single public HTTPS URL.
+ScriptStudio runs entirely on free plans:
 
-| | **Render** (recommended to start) | **Google Cloud Run** |
+| What | Service | Free limits |
 |---|---|---|
-| Setup time | ~5 minutes, all in the browser | ~20 minutes, in Cloud Shell |
-| You need | A Render account and an OpenAI API key | A Google Cloud project with billing, and an OpenAI key |
-| Cost | Starter instance + 1 GB disk (about $7–8/month) + OpenAI | Pay per use, scales to zero + OpenAI |
-| Storage / jobs | Persistent disk, in-process job runner | Firestore and Cloud Tasks |
-| Auto-deploy | Every push to `main` | Every push to `main` (GitHub Actions) |
+| AI model | Google Gemini API (Google AI Studio) | About 10 requests a minute and a few hundred a day, which is roughly **20 scripts a day**. Google may use free-tier inputs to improve its products, so avoid confidential client material. |
+| Server | Render free web service | Sleeps after 15 minutes without visitors, and the next visit takes about a minute. The *Keep alive* workflow can prevent this. |
+| Database | Neon free Postgres | 0.5 GB, which holds thousands of scripts |
+| Code and checks | GitHub (public repo) | Free |
 
-## Option A — Render (one click)
+Your ChatGPT Plus or Claude Pro subscriptions can't power the app: those are chat subscriptions, and apps need a separate "API" account. Gemini's free API key covers that.
 
-1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio)** and sign in. Signing in with GitHub is easiest.
-2. Render reads `render.yaml` and asks for two values:
-   - **OPENAI_API_KEY**: your OpenAI key, which must have access to the models listed in `render.yaml`.
-   - **ADMIN_PASSCODE**: any passphrase. Enter it on the *House format* page to edit the format.
-3. Click **Apply**. The first build takes about 5 minutes. Your URL looks like `https://scriptstudio-xxxx.onrender.com`.
-4. Open the URL. You should see the **New script** page. Generate a script to confirm it works.
-5. **Verify end to end** (optional): in GitHub, go to **Actions → Smoke test (live URL) → Run workflow** and paste the URL. It loads the page, generates a real script from a real product page, and checks the Word and HTML exports.
+---
 
-### Who can use it
+## Step 1 — Free AI key from Google (about 2 minutes)
 
-By default (`AUTH_MODE=anonymous`), anyone with the link can use the app. Each browser gets its own private workspace, and nobody sees anyone else's scripts. Two limits protect your OpenAI budget:
+1. Open **https://aistudio.google.com/apikey** and sign in with any Google account.
+2. If asked, accept the terms.
+3. Click **Create API key**. If it asks for a project, pick the suggested one or create a new one.
+4. Click **Copy**. Keep it in a private note for a few minutes. It starts with `AIza`.
 
-| Setting (Render → Environment) | Default | Meaning |
+No card is needed. If Google ever asks for billing details, stop: the free tier doesn't need them.
+
+## Step 2 — Free database from Neon (about 3 minutes)
+
+1. Open **https://neon.tech** and click **Sign up**. *Continue with Google* or *GitHub* is easiest.
+2. Create a project:
+   - **Name:** `scriptstudio`
+   - **Postgres version:** leave the default.
+   - **Region:** pick **AWS Asia Pacific (Singapore)**.
+   - Click **Create project**.
+3. On the project dashboard, click **Connect**. You'll see a **Connection string** starting with `postgresql://`.
+4. Click **Copy snippet**, or the copy icon, and keep it in your private note.
+
+## Step 3 — Put the app online with Render (about 3 minutes, then a 5–10 minute build)
+
+1. Open **https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio**
+2. Click **Sign in with GitHub** and approve.
+3. On the **Blueprint** page, fill the three boxes:
+   - **GEMINI_API_KEY**: paste the key from Step 1.
+   - **DATABASE_URL**: paste the connection string from Step 2.
+   - **ADMIN_PASSCODE**: type any password you'll remember. It unlocks editing the house format in the app.
+4. Make sure the plan says **Free**, then click **Apply**.
+5. Open the **scriptstudio** service. Wait until the status at the top says **Live**.
+6. Copy the URL under the service name, like `https://scriptstudio-xxxx.onrender.com`.
+
+## Step 4 — Check it
+
+Open the URL. You should see **New script**. Paste any product page link and a short brief, click **Generate script**, and wait 3–6 minutes. Free-tier requests are spaced out to stay within Google's limits, so it's slower than paid models.
+
+Optionally, run the automatic end-to-end check: in GitHub, go to **Actions → Smoke test (live URL) → Run workflow** and paste the URL.
+
+## Optional — keep it awake
+
+In GitHub, go to **Settings → Secrets and variables → Actions → Variables → New repository variable**:
+- **Name:** `KEEPALIVE_URL`
+- **Value:** your app URL
+
+A free GitHub workflow then pings the app every 10 minutes during the day, so visitors don't wait for it to wake up. One always-on app fits within Render's 750 free hours a month.
+
+---
+
+## Settings you can change later (Render → scriptstudio → Environment)
+
+| Setting | Default | Meaning |
 |---|---|---|
-| `DAILY_JOB_LIMIT` | 10 | Generations + revisions per browser per day |
-| `GLOBAL_DAILY_LIMIT` | 100 | Generations + revisions for the whole app per day |
+| `DAILY_JOB_LIMIT` | 5 | Scripts + revisions per browser per day |
+| `GLOBAL_DAILY_LIMIT` | 20 | Scripts + revisions for the whole app per day (keeps you inside Gemini's free quota) |
+| `MODEL_CREATIVE`, `MODEL_CRITIC`, `MODEL_EXTRACT` | `gemini-2.5-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` | Change these if Google renames its free models |
+| `LLM_PROVIDER` | `gemini` | `openai` (paid, set `OPENAI_API_KEY`), `groq` (free tier, set `GROQ_API_KEY`), `openrouter`, `compat` |
+| `AUTH_MODE` | `anonymous` | `google` requires Google sign-in (needs `GOOGLE_CLIENT_ID`; see the Google Docs section) |
 
-To require **Google sign-in** instead:
-1. Set `AUTH_MODE=google` and `GOOGLE_CLIENT_ID` (see "Google sign-in" below).
-2. Optionally set `ALLOWED_EMAIL_DOMAINS` (e.g. `pickrr.com`) and `ADMIN_EMAILS`.
+## Optional — direct "Export to Google Docs" (free)
 
-## Option B — Google Cloud Run
+Without this, users download **Word (.docx)**. Opening that file from Google Drive turns it into a Google Doc with the same layout.
 
-Run these in **Google Cloud Shell**:
-
-```bash
-git clone https://github.com/anmolpickrr/ScriptStudio.git && cd ScriptStudio
-cp infra/config.env.example infra/config.env && nano infra/config.env   # PROJECT_ID, REGION, GITHUB_REPO
-bash infra/setup-gcp.sh     # APIs, Firestore, queue, service accounts; asks for OpenAI key + admin passcode
-bash infra/deploy.sh        # builds, deploys, prints the live URL and health-checks it
-```
-
-Leave `GOOGLE_CLIENT_ID` empty for guest mode (an open link), or set it for Google sign-in.
-
-For automatic deploys, add the GitHub repository variables that `setup-gcp.sh` prints. Go to **Settings → Secrets and variables → Actions → Variables** and add `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`, `PROJECT_ID`, `REGION` and the rest of `config.env`. No keys are stored in GitHub; the deploy uses Workload Identity Federation.
-
-## Google sign-in and direct Google Docs export (optional, either host)
-
-Without this, users export **Word (.docx)**. Upload that file to Google Drive, or use *File → Open* in Google Docs, and it becomes a Doc with the same headings and tables.
-
-With it, users also get **Export → Google Docs**, which creates a native Doc in their own Drive in one click.
-
-1. In the Google Cloud Console, open **APIs & Services → OAuth consent screen**:
+For one-click export straight into Google Docs, you need a free Google OAuth client:
+1. In **console.cloud.google.com → APIs & Services → OAuth consent screen**:
    - Choose **External**.
-   - Add the scope `…/auth/drive.file`. It is non-sensitive, so Google doesn't need to review the app.
+   - Add the scope `…/auth/drive.file`.
    - Click **Publish app**.
-2. Go to **Credentials → Create credentials → OAuth client ID → Web application**:
-   - Under **Authorized JavaScript origins**, add your app URL.
+2. Go to **Credentials → Create credentials → OAuth client ID → Web application**.
+   - Add your app URL under **Authorized JavaScript origins**.
    - Copy the **Client ID**.
-3. Set `GOOGLE_CLIENT_ID` on your host.
-   - Keep `AUTH_MODE=anonymous` to get Docs export without requiring sign-in.
-   - Set `AUTH_MODE=google` to require sign-in.
+3. In Render, add `GOOGLE_CLIENT_ID` with that value.
 
-## Operating it
+## Paid alternative: Google Cloud Run
 
-- **Health:** `GET /api/health`. While unlocked as admin, `/api/admin/status` lists configuration problems, such as a missing API key.
-- **Models:** set `MODEL_CREATIVE`, `MODEL_CRITIC` and `MODEL_EXTRACT` to any OpenAI models your account can use with structured outputs.
-- **Restarts:** if the server restarts mid-generation, new scripts restart automatically. Revisions that were interrupted keep the previous version and show a notice.
-- **Logs:** the Render dashboard's **Logs** tab, or Cloud Run → Logs. Each pipeline stage logs its model and duration.
+`infra/setup-gcp.sh` and `infra/deploy.sh` deploy to Cloud Run with Firestore and Cloud Tasks. These need a billing account, though small usage often stays inside Google's free quotas. See the comments in those scripts.
 
 ## Troubleshooting
 
-| Symptom | Fix |
+| What you see | What to do |
 |---|---|
-| "The AI service rejected our credentials" | `OPENAI_API_KEY` is wrong, or the OpenAI account has no credit |
-| "configured AI model isn't available" | Change the `MODEL_*` variables to models your account can use |
-| "reached today's generation capacity" | Raise `GLOBAL_DAILY_LIMIT` |
-| Product page can't be read | Some sites block automated access. Use *Page won't load?* in the form to paste the product copy. |
-| Google button says "origin not allowed" | Add the exact app URL to the OAuth client's Authorized JavaScript origins |
-| Render build fails on the disk step | Disks need a paid instance type. Keep `plan: starter`. |
+| "usage limit was reached" | The free AI quota for the minute or day is used up. Wait a few minutes, or until tomorrow. |
+| "rejected our credentials" | `GEMINI_API_KEY` is wrong. Create a new key in AI Studio and update it in Render → Environment. |
+| "configured AI model isn't available" | Google renamed its models. Set `MODEL_*` to current free models listed in AI Studio. |
+| Site takes about a minute to open | It was asleep (free plan). Turn on *Keep alive* above. |
+| Render status "Failed" | Open **Logs**. If it mentions `DATABASE_URL`, re-copy the Neon connection string. |
+| Product page can't be read | Some shops block automated access. Use *Page won't load?* in the form to paste the product copy. |

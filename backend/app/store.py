@@ -218,14 +218,127 @@ class FirestoreStore:
         return sorted(items, key=lambda i: i.approved_at, reverse=True)
 
 
+class PostgresStore:
+    """Same interface on Postgres (e.g. Neon's free tier). One JSONB table keeps it schema-migration free."""
+
+    DDL = """
+    CREATE TABLE IF NOT EXISTS sw_docs (
+        collection text NOT NULL, id text NOT NULL, owner text NOT NULL DEFAULT '',
+        created_at text NOT NULL DEFAULT '', data jsonb NOT NULL,
+        PRIMARY KEY (collection, id));
+    CREATE INDEX IF NOT EXISTS sw_docs_owner ON sw_docs (collection, owner, created_at DESC);
+    """
+
+    def __init__(self, url: str):
+        from psycopg_pool import ConnectionPool
+        # check= revalidates idle connections, which serverless Postgres closes when it scales to zero
+        self.pool = ConnectionPool(url, min_size=1, max_size=5, kwargs={"autocommit": True},
+                                   check=ConnectionPool.check_connection, open=True, timeout=30)
+        with self.pool.connection() as c:
+            c.execute(self.DDL)
+
+    def _put(self, collection: str, id_: str, model: BaseModel, owner: str = "", created_at: str = ""):
+        from psycopg.types.json import Jsonb
+        with self.pool.connection() as c:
+            c.execute("INSERT INTO sw_docs (collection, id, owner, created_at, data) VALUES (%s, %s, %s, %s, %s) "
+                      "ON CONFLICT (collection, id) DO UPDATE SET owner = EXCLUDED.owner, data = EXCLUDED.data",
+                      (collection, id_, owner, created_at, Jsonb(json.loads(model.model_dump_json()))))
+
+    def _get(self, collection: str, id_: str):
+        with self.pool.connection() as c:
+            row = c.execute("SELECT data FROM sw_docs WHERE collection = %s AND id = %s", (collection, id_)).fetchone()
+        return row[0] if row else None
+
+    def _list(self, collection: str, owner: Optional[str] = None, limit: int = 1000) -> list[dict]:
+        q = "SELECT data FROM sw_docs WHERE collection = %s"
+        args: list = [collection]
+        if owner is not None:
+            q += " AND owner = %s"
+            args.append(owner)
+        q += " ORDER BY created_at DESC LIMIT %s"
+        args.append(limit)
+        with self.pool.connection() as c:
+            return [r[0] for r in c.execute(q, args).fetchall()]
+
+    def _delete(self, collection: str, id_: str):
+        with self.pool.connection() as c:
+            c.execute("DELETE FROM sw_docs WHERE collection = %s AND id = %s", (collection, id_))
+
+    def save_job(self, job):
+        self._put("jobs", job.id, job, job.owner, job.created_at)
+
+    def get_job(self, job_id):
+        d = self._get("jobs", job_id)
+        return Job.model_validate(d) if d else None
+
+    def list_jobs(self, owner=None, limit=100):
+        return [Job.model_validate(d) for d in self._list("jobs", owner, limit)]
+
+    def delete_job(self, job_id):
+        self._delete("jobs", job_id)
+
+    def get_format(self, format_id):
+        d = self._get("formats", format_id)
+        if d:
+            return FormatSpec.model_validate(d)
+        if format_id == DEFAULT_FORMAT.id:
+            return DEFAULT_FORMAT.model_copy(deep=True)
+        raise KeyError(f"Unknown format '{format_id}'")
+
+    def save_format(self, spec):
+        try:
+            current = self.get_format(spec.id)
+            spec.version = current.version + 1
+            self._put("format_history", f"{spec.id}@v{current.version}", current)
+        except KeyError:
+            spec.version = 1
+        self._put("formats", spec.id, spec)
+        return spec
+
+    def list_formats(self):
+        specs = {DEFAULT_FORMAT.id: DEFAULT_FORMAT}
+        for d in self._list("formats"):
+            s = FormatSpec.model_validate(d)
+            specs[s.id] = s
+        return list(specs.values())
+
+    def add_approved(self, item):
+        self._put("approved", item.job_id, item, item.platform, item.approved_at)
+
+    def remove_approved(self, job_id):
+        self._delete("approved", job_id)
+
+    def list_approved(self, platform=None):
+        return [ApprovedScript.model_validate(d) for d in self._list("approved", platform)]
+
+    def consume(self, day, limits):
+        from psycopg.types.json import Jsonb
+        with self.pool.connection() as c, c.transaction():
+            c.execute("INSERT INTO sw_docs (collection, id, data) VALUES ('usage', %s, '{}'::jsonb) "
+                      "ON CONFLICT DO NOTHING", (day,))
+            counts = c.execute("SELECT data FROM sw_docs WHERE collection = 'usage' AND id = %s FOR UPDATE",
+                               (day,)).fetchone()[0]
+            for key, limit in limits.items():
+                if limit and counts.get(key, 0) >= limit:
+                    return key
+            for key in limits:
+                counts[key] = counts.get(key, 0) + 1
+            c.execute("UPDATE sw_docs SET data = %s WHERE collection = 'usage' AND id = %s", (Jsonb(counts), day))
+        return None
+
+
 _store: Optional[Store] = None
 
 
 def get_store() -> Store:
     global _store
     if _store is None:
-        _store = FirestoreStore(settings.gcp_project) if settings.store_backend == "firestore" \
-            else LocalStore(settings.local_store_dir)
+        if settings.store_backend == "postgres":
+            _store = PostgresStore(settings.database_url)
+        elif settings.store_backend == "firestore":
+            _store = FirestoreStore(settings.gcp_project)
+        else:
+            _store = LocalStore(settings.local_store_dir)
     return _store
 
 

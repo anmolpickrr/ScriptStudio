@@ -38,19 +38,38 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+PROVIDER_PRESETS: dict[str, dict] = {
+    "openai": {"creative": "gpt-5", "critic": "gpt-5", "extract": "gpt-5-mini"},
+    # Google AI Studio free tier: no card needed. ~10 requests/minute on Flash, so calls are spaced out.
+    "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY",
+               "creative": "gemini-2.5-flash", "critic": "gemini-2.5-flash", "extract": "gemini-2.5-flash-lite",
+               "min_interval": 7.0},
+    "groq": {"base_url": "https://api.groq.com/openai/v1", "key_env": "GROQ_API_KEY",
+             "creative": "llama-3.3-70b-versatile", "critic": "llama-3.3-70b-versatile",
+             "extract": "llama-3.1-8b-instant", "min_interval": 2.5},
+    "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY", "min_interval": 4.0},
+    "compat": {"key_env": "LLM_API_KEY"},
+}
+
+
 @dataclass
 class Settings:
     env: str = field(default_factory=lambda: _env("APP_ENV", "development"))  # development | production
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL"))  # https://scriptwright-xyz.a.run.app
 
     # ---- AI
-    llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "openai"))  # openai | demo
+    # openai (paid, Responses API) | gemini (free tier) | groq | openrouter | compat (any OpenAI-compatible URL) | demo
+    llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "gemini"))
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
-    model_creative: str = field(default_factory=lambda: _env("MODEL_CREATIVE", "gpt-5"))
-    model_critic: str = field(default_factory=lambda: _env("MODEL_CRITIC", "gpt-5"))
-    model_extract: str = field(default_factory=lambda: _env("MODEL_EXTRACT", "gpt-5-mini"))
+    llm_api_key: str = field(default_factory=lambda: _env("LLM_API_KEY"))    # for gemini/groq/openrouter/compat
+    llm_base_url: str = field(default_factory=lambda: _env("LLM_BASE_URL"))
+    model_creative: str = field(default_factory=lambda: _env("MODEL_CREATIVE"))
+    model_critic: str = field(default_factory=lambda: _env("MODEL_CRITIC"))
+    model_extract: str = field(default_factory=lambda: _env("MODEL_EXTRACT"))
     reasoning_effort: str = field(default_factory=lambda: _env("REASONING_EFFORT", "medium"))
     llm_timeout_sec: int = field(default_factory=lambda: _int("LLM_TIMEOUT_SEC", 300))
+    # Free tiers limit requests per minute; calls are spaced at least this far apart.
+    llm_min_interval_sec: float = field(default_factory=lambda: float(_env("LLM_MIN_INTERVAL_SEC", "-1")))
 
     # ---- Auth
     # google = Google sign-in; anonymous = open access, each browser gets its own private workspace;
@@ -68,7 +87,8 @@ class Settings:
     max_concurrent_jobs: int = field(default_factory=lambda: _int("MAX_CONCURRENT_JOBS", 3))  # in-process runner
 
     # ---- Storage
-    store_backend: str = field(default_factory=lambda: _env("STORE_BACKEND", "local"))  # local | firestore
+    store_backend: str = field(default_factory=lambda: _env("STORE_BACKEND") or "local")  # local | postgres | firestore
+    database_url: str = field(default_factory=lambda: _env("DATABASE_URL"))  # postgres (e.g. Neon free tier)
     local_store_dir: str = field(default_factory=lambda: _env("LOCAL_STORE_DIR", ".data"))
     gcp_project: str = field(default_factory=lambda: _env("GOOGLE_CLOUD_PROJECT"))
 
@@ -86,6 +106,18 @@ class Settings:
     fetch_timeout_sec: float = 20.0
     fetch_max_bytes: int = 5_000_000
 
+    def __post_init__(self):
+        preset = PROVIDER_PRESETS.get(self.llm_provider, {})
+        self.llm_base_url = self.llm_base_url or preset.get("base_url", "")
+        self.llm_api_key = self.llm_api_key or _env(preset.get("key_env", "")) if preset.get("key_env") else self.llm_api_key
+        self.model_creative = self.model_creative or preset.get("creative", "")
+        self.model_critic = self.model_critic or preset.get("critic", "")
+        self.model_extract = self.model_extract or preset.get("extract", "")
+        if self.llm_min_interval_sec < 0:
+            self.llm_min_interval_sec = preset.get("min_interval", 0.0)
+        if self.database_url and self.store_backend == "local" and not _env("STORE_BACKEND"):
+            self.store_backend = "postgres"
+
     @property
     def production(self) -> bool:
         return self.env == "production"
@@ -95,6 +127,15 @@ class Settings:
         issues = []
         if self.llm_provider == "openai" and not self.openai_api_key:
             issues.append("OPENAI_API_KEY is not set")
+        if self.llm_provider in ("gemini", "groq", "openrouter", "compat") and not self.llm_api_key:
+            key = PROVIDER_PRESETS.get(self.llm_provider, {}).get("key_env", "LLM_API_KEY")
+            issues.append(f"{key} is not set")
+        if self.llm_provider not in (*PROVIDER_PRESETS, "demo"):
+            issues.append(f"Unknown LLM_PROVIDER '{self.llm_provider}'")
+        if not all((self.model_creative, self.model_critic, self.model_extract)) and self.llm_provider != "demo":
+            issues.append("MODEL_CREATIVE / MODEL_CRITIC / MODEL_EXTRACT must be set for this provider")
+        if self.store_backend == "postgres" and not self.database_url:
+            issues.append("STORE_BACKEND=postgres but DATABASE_URL is not set")
         if self.auth_mode == "google" and not self.google_client_id:
             issues.append("AUTH_MODE=google but GOOGLE_CLIENT_ID is not set")
         if self.production and not _env("SESSION_SECRET"):

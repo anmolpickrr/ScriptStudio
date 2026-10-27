@@ -1,45 +1,35 @@
-# One-click deploy: https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio
-# Render asks for OPENAI_API_KEY and ADMIN_PASSCODE, builds the Dockerfile and gives you a public https URL.
+# One-click deploy on Render's FREE plan:
+#   https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio
+# Render asks for three values (see docs/DEPLOYMENT.md):
+#   GEMINI_API_KEY  – free key from https://aistudio.google.com/apikey (no card)
+#   DATABASE_URL    – free Postgres connection string from https://neon.tech (no card)
+#   ADMIN_PASSCODE  – any password you choose; unlocks house-format editing in the app
 services:
   - type: web
     name: scriptstudio
     runtime: docker
-    plan: starter            # always-on; needed for the persistent disk below
+    plan: free               # free instances sleep after 15 min idle; the keep-alive workflow can prevent that
     region: singapore
     healthCheckPath: /api/health
     autoDeploy: true         # every push to main redeploys
-    disk:
-      name: scriptstudio-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
-      - key: OPENAI_API_KEY
-        sync: false          # you paste it in the Render dashboard
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: ADMIN_PASSCODE
-        sync: false          # unlocks house-format editing in the app
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: LLM_PROVIDER
+        value: gemini        # free tier; switch to "openai" + OPENAI_API_KEY for paid OpenAI models
       - key: APP_ENV
         value: production
       - key: AUTH_MODE
-        value: anonymous     # open link, private workspace per browser; switch to google for sign-in
-      - key: LLM_PROVIDER
-        value: openai
-      - key: STORE_BACKEND
-        value: local
-      - key: LOCAL_STORE_DIR
-        value: /data
+        value: anonymous     # open link, private workspace per browser
       - key: DAILY_JOB_LIMIT
-        value: "10"
+        value: "5"           # per browser per day
       - key: GLOBAL_DAILY_LIMIT
-        value: "100"
+        value: "20"          # whole app per day — keeps usage inside Gemini's free daily quota
       - key: MAX_CONCURRENT_JOBS
-        value: "3"
-      - key: MODEL_CREATIVE
-        value: gpt-5
-      - key: MODEL_CRITIC
-        value: gpt-5
-      - key: MODEL_EXTRACT
-        value: gpt-5-mini
-      - key: REASONING_EFFORT
-        value: medium
+        value: "2"

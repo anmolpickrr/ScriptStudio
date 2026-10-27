@@ -38,15 +38,15 @@ ScriptStudio turns a **product link and a client brief** into a **production-rea
 |---|---|
 | Frontend | React 19 + TypeScript + Vite (`frontend/`) |
 | Backend | Python 3.12, FastAPI (`backend/`), served from the same container as the UI |
-| AI | OpenAI Responses API with strict structured outputs (models configurable) |
+| AI | **Google Gemini free tier** by default (no card); also OpenAI, Groq, OpenRouter or any OpenAI-compatible API — structured, schema-validated outputs |
 | Access | **Guest mode** (open link, private workspace per browser, daily caps) or **Google sign-in** (domain allowlists, admins) |
-| Hosting | **Render** (one click, persistent disk) or **Google Cloud Run** + Cloud Tasks + Firestore (scales to zero) |
+| Hosting | **Render free plan** + **Neon free Postgres** (one click, $0), or Google Cloud Run + Firestore |
 | CI/CD | GitHub Actions: tests, type-check, container end-to-end test, deploys, and a live-URL smoke test |
 
 ## Run locally
 
 ```bash
-cp .env.example backend/.env      # set OPENAI_API_KEY, or LLM_PROVIDER=demo to try it without AI
+cp .env.example backend/.env      # set GEMINI_API_KEY (free), or LLM_PROVIDER=demo to try it without AI
 make install
 make dev-api                      # terminal 1 → API on :8000
 make dev-web                      # terminal 2 → open http://localhost:5173
@@ -58,7 +58,7 @@ Or run the production image with `docker compose up --build`, which serves http:
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
-The fastest route is the **Deploy to Render** button above. Paste your OpenAI key, choose an admin passcode, and you get a public `https://…onrender.com` link in about 5 minutes. Every push to `main` then redeploys.
+The **Deploy to Render** button above sets everything up on free plans: Render (server), Neon (database) and Google Gemini (AI). No card is needed, and it costs $0. You paste two free keys, and you get a public `https://…onrender.com` link. Every push to `main` then redeploys.
 
 ## Tests
 
