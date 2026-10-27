@@ -33,10 +33,32 @@ def deep_health():
         out["db"] = "ok"
     except StoreUnavailable as e:
         out["db"] = f"error: {e}"
+        out["db_direct"] = _direct_db_check()
     except Exception as e:
         out["db"] = f"error: {type(e).__name__}: {redact(str(e))}"
+        out["db_direct"] = _direct_db_check()
     out["ok"] = out["db"] == "ok" and not out["config_issues"]
     return out
+
+
+def _direct_db_check() -> str:
+    """One plain connection attempt, so the real reason (DNS, TLS, auth…) is visible instead of a pool timeout."""
+    if settings.store_backend != "postgres":
+        return "n/a"
+    from urllib.parse import urlparse
+    from ..store import redact
+    url = settings.database_url
+    p = urlparse(url)
+    shape = (f"scheme={p.scheme} host_suffix={(p.hostname or '')[-24:].split('.', 1)[-1] if p.hostname else 'MISSING'} "
+             f"db={(p.path or '/')[1:] or 'MISSING'} user={'set' if p.username else 'MISSING'} "
+             f"password={'set' if p.password else 'MISSING'} params={sorted(k.split('=')[0] for k in p.query.split('&') if k)}")
+    try:
+        import psycopg
+        with psycopg.connect(url, connect_timeout=10) as c:
+            c.execute("select 1")
+        return f"ok ({shape})"
+    except Exception as e:
+        return f"{type(e).__name__}: {redact(str(e))} ({shape})"
 
 
 @router.get("/api/admin/status")
