@@ -53,14 +53,19 @@ class Settings:
     llm_timeout_sec: int = field(default_factory=lambda: _int("LLM_TIMEOUT_SEC", 300))
 
     # ---- Auth
-    auth_mode: str = field(default_factory=lambda: _env("AUTH_MODE", "none"))  # google | none
+    # google = Google sign-in; anonymous = open access, each browser gets its own private workspace;
+    # none = single local admin (development only)
+    auth_mode: str = field(default_factory=lambda: _env("AUTH_MODE", "none"))
+    admin_passcode: str = field(default_factory=lambda: _env("ADMIN_PASSCODE"))  # unlocks admin in anonymous mode
     google_client_id: str = field(default_factory=lambda: _env("GOOGLE_CLIENT_ID"))
     session_secret: str = field(default_factory=lambda: _env("SESSION_SECRET") or secrets.token_hex(32))
     session_days: int = field(default_factory=lambda: _int("SESSION_DAYS", 14))
     allowed_email_domains: list[str] = field(default_factory=lambda: _list("ALLOWED_EMAIL_DOMAINS"))
     allowed_emails: list[str] = field(default_factory=lambda: _list("ALLOWED_EMAILS"))
     admin_emails: list[str] = field(default_factory=lambda: _list("ADMIN_EMAILS"))
-    daily_job_limit: int = field(default_factory=lambda: _int("DAILY_JOB_LIMIT", 15))
+    daily_job_limit: int = field(default_factory=lambda: _int("DAILY_JOB_LIMIT", 15))   # per user
+    global_daily_limit: int = field(default_factory=lambda: _int("GLOBAL_DAILY_LIMIT", 200))  # whole app
+    max_concurrent_jobs: int = field(default_factory=lambda: _int("MAX_CONCURRENT_JOBS", 3))  # in-process runner
 
     # ---- Storage
     store_backend: str = field(default_factory=lambda: _env("STORE_BACKEND", "local"))  # local | firestore
@@ -95,7 +100,11 @@ class Settings:
         if self.production and not _env("SESSION_SECRET"):
             issues.append("SESSION_SECRET is not set; sessions reset on every restart")
         if self.production and self.auth_mode == "none":
-            issues.append("AUTH_MODE=none in production: anyone can spend your OpenAI budget")
+            issues.append("AUTH_MODE=none in production: every visitor is an admin")
+        if self.auth_mode == "anonymous" and not self.global_daily_limit:
+            issues.append("AUTH_MODE=anonymous without GLOBAL_DAILY_LIMIT: no cap on OpenAI spend")
+        if self.auth_mode not in ("google", "anonymous", "none"):
+            issues.append(f"Unknown AUTH_MODE '{self.auth_mode}'")
         if self.tasks_queue and not (self.worker_url or self.public_base_url):
             issues.append("CLOUD_TASKS_QUEUE is set but neither WORKER_URL nor PUBLIC_BASE_URL is")
         return issues

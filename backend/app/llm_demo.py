@@ -88,6 +88,14 @@ class DemoLLM:
                                      what_happens=n, emotional_note="") for i, n in enumerate(names)])
 
     def _write(self, user):
+        m = re.search(r"PRODUCT: (.+?) by ", user)
+        if m and m.group(1).strip():
+            self.product = m.group(1).strip()[:60]
+        m = re.search(r'"duration_sec": (\d+)', user)
+        if m:
+            self.duration = int(m.group(1))
+        if not self.facts:
+            self.facts = re.findall(r"- (F\d+) \[\w+\] (.+)", user)
         d = self.duration
         cuts = [0, round(d * 0.15, 1), round(d * 0.5, 1), round(d * 0.8, 1), d]
         facts = self.facts[:2]

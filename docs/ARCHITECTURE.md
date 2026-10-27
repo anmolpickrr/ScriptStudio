@@ -1,6 +1,6 @@
-# Scriptwright: Architecture & Editorial System
+# ScriptStudio: Architecture & Editorial System
 
-Scriptwright turns a product link and a client brief into a production-ready video script. It exports the script as a Google Doc in one approved house format, and it raises flags instead of inventing details whenever information is missing.
+ScriptStudio turns a product link and a client brief into a production-ready video script. It exports the script as a Google Doc in one approved house format, and it raises flags instead of inventing details whenever information is missing.
 
 ## 1. Design principles
 
@@ -93,6 +93,7 @@ Browser (React SPA) ──HTTPS──► Cloud Run "scriptwright" (FastAPI + sta
   - The server verifies Google ID tokens, then issues its own HMAC-signed, HttpOnly, Secure, SameSite=Lax session cookie.
   - No Google refresh tokens are stored.
   - Drive access uses short-lived tokens with the `drive.file` scope, which only reaches files the app creates.
+- **Guest mode** (`AUTH_MODE=anonymous`): each browser gets a signed, random workspace ID instead of an account. Admin features unlock with `ADMIN_PASSCODE`, and per-browser plus app-wide daily caps (atomic counters in the store) bound OpenAI spend.
 - **Authorization:**
   - Jobs belong to their creator. Other users get a 404.
   - Only admins can edit the format or the library.

@@ -24,7 +24,7 @@ export default function SignIn() {
     <div className="signin">
       <div className="card">
         <img src="/favicon.svg" alt="" width={44} height={44} />
-        <h1 style={{ marginTop: 12 }}>Scriptwright</h1>
+        <h1 style={{ marginTop: 12 }}>ScriptStudio</h1>
         <p className="muted">Production-ready video scripts from a product link and a client brief.</p>
         <ul>
           <li>Every product claim checked against the product page</li>

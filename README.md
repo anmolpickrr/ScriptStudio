@@ -1,9 +1,11 @@
-# Scriptwright
+# ScriptStudio
 
-Scriptwright turns a **product link and a client brief** into a **production-ready video script**. Every script follows the same house format and is exported to Google Docs in one click.
+ScriptStudio turns a **product link and a client brief** into a **production-ready video script**. Every script follows the same house format, and you can open it in Google Docs or Word.
 
-- **Product accuracy.** Product facts come from the product page. Each fact must be quoted word for word from the page, and code checks that the quote is really there. Anything that can't be verified is flagged, never invented.
-- **Many specialist stages, not one prompt.** The steps are:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio)
+
+- **Product accuracy.** Product facts come from the product page. Each fact is quoted word for word from the page, and code checks that the quote is really there. Anything that can't be verified is flagged for the client, never invented.
+- **Many specialist stages, not one prompt:**
   1. Product analysis
   2. Brief
   3. Accuracy check
@@ -11,80 +13,78 @@ Scriptwright turns a **product link and a client brief** into a **production-rea
   5. Timed beat sheet
   6. Script
   7. Quality review, with automatic revisions
-- **Automated quality review.** It checks:
+- **Automated quality review:**
   - Visual and VO sync, and timing
   - Hook strength, story logic and dialogue
   - Product truth, fake-looking visuals and continuity
   - CTA, mandatories and exclusions
-- **Consistent output.** The model fills in structured fields and code renders the document, so every Google Doc has the same layout. You can edit and version the format in the app.
+- **Consistent output.** The model fills in structured fields and code renders the document, so every script has the same layout. You can edit and version the format in the app.
 - **Learns your standard.** Approved scripts, with the editor's note on why they're good, guide future scripts.
+
+## What you can do in the app
+
+| | |
+|---|---|
+| **New script** | Product link + brief (required). Platform and length, plus optional creative direction: hook type, theme, references, must-include and avoid. |
+| **Live progress** | Step-by-step pipeline status with elapsed time. You can leave the page while it works. |
+| **Script view** | Doc-identical preview (responsive on phones), quality scores and findings, client flags, the concepts explored, and verified product facts. |
+| **Iterate** | *Revise with notes*, *Use this concept*, and *Try again* on failures. Revision history is kept. |
+| **Export** | Word (.docx), which opens in Google Docs, Word or Pages. Direct Google Docs export when Google sign-in is configured. HTML. |
+| **House standard** | Approve scripts into the house library. Edit the house format (sections, quality bar, editorial rules) as an admin. |
 
 ## Stack
 
 | Layer | Tech |
 |---|---|
 | Frontend | React 19 + TypeScript + Vite (`frontend/`) |
-| Backend | Python 3.12, FastAPI (`backend/`) |
+| Backend | Python 3.12, FastAPI (`backend/`), served from the same container as the UI |
 | AI | OpenAI Responses API with strict structured outputs (models configurable) |
-| Hosting | Google Cloud Run: one container serves the API and the UI, at a public HTTPS URL |
-| Jobs | Cloud Tasks → authenticated callback to the service (retries, 30-minute runs) |
-| Data | Firestore (jobs, formats with version history, approved library) |
-| Auth | Google Sign-In; optional domain allowlist; admins; per-user daily limits |
-| Docs export | Google Drive API (HTML → native Google Doc) with the user's own `drive.file` permission |
-| CI/CD | GitHub Actions → keyless deploy to Cloud Run (Workload Identity Federation) |
+| Access | **Guest mode** (open link, private workspace per browser, daily caps) or **Google sign-in** (domain allowlists, admins) |
+| Hosting | **Render** (one click, persistent disk) or **Google Cloud Run** + Cloud Tasks + Firestore (scales to zero) |
+| CI/CD | GitHub Actions: tests, type-check, container end-to-end test, deploys, and a live-URL smoke test |
 
-## Quick start (local)
+## Run locally
 
 ```bash
-cp .env.example backend/.env      # set OPENAI_API_KEY, or LLM_PROVIDER=demo to try without AI
+cp .env.example backend/.env      # set OPENAI_API_KEY, or LLM_PROVIDER=demo to try it without AI
 make install
-make dev-api                      # terminal 1 → http://localhost:8000/api/health
-make dev-web                      # terminal 2 → http://localhost:5173
+make dev-api                      # terminal 1 → API on :8000
+make dev-web                      # terminal 2 → open http://localhost:5173
 ```
 
-You can also run the production image with `docker compose up --build`, which serves http://localhost:8080.
+Or run the production image with `docker compose up --build`, which serves http://localhost:8080.
 
-Locally, `AUTH_MODE=none` signs you in as a single admin user. In demo mode (`LLM_PROVIDER=demo`), placeholder scripts are produced so you can try the whole UI with no API key.
+## Deploy
 
-## Deploy to a public URL
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
-Allow about 20 minutes the first time. See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. In short:
-
-1. Create a Google Cloud project with billing.
-2. Create a Google OAuth client.
-3. Run `bash infra/setup-gcp.sh`.
-4. Run `bash infra/deploy.sh`.
-
-From then on, every push to `main` deploys automatically.
+The fastest route is the **Deploy to Render** button above. Paste your OpenAI key, choose an admin passcode, and you get a public `https://…onrender.com` link in about 5 minutes. Every push to `main` then redeploys.
 
 ## Tests
 
 ```bash
-make test        # 26 backend tests (no network or API key needed) + frontend type-check
+make test        # backend unit + API tests (no network or API key needed) + frontend type-check
 ```
+
+CI also builds the production container, runs it with a data disk against a real product page, and checks the exports and restart recovery. After deploying, run **Actions → Smoke test (live URL)** with your URL. It generates a real script on the live site and verifies the exports.
 
 ## Repository map
 
 ```
 backend/app/
-  main.py              app, security headers, CSRF guard, SPA serving
-  routes/jobs.py       create / list / view / revise / switch concept / approve / export / delete
-  routes/system.py     auth, config, options, library, house format, Cloud Tasks callback
-  auth.py              Google sign-in, signed session cookie, allowlists, admin, task OIDC
-  worker.py            Cloud Tasks dispatch + execution
+  main.py              app, security headers, CSRF guard, SPA serving, startup job recovery
+  routes/jobs.py       create / list / view / revise / switch concept / retry / approve / export / delete
+  routes/system.py     config, auth (Google, guest, admin passcode), options, library, house format, task callback
+  auth.py              sessions, guest workspaces, allowlists, admin, Cloud Tasks OIDC
+  worker.py            Cloud Tasks dispatch or bounded in-process runner
   pipeline.py          multi-stage workflow and QC/revision loop
   prompts.py           specialist role prompts + shared craft standard
   ingest/              product-page analysis (JSON-LD, Shopify, vision), references
   qc/checks.py         deterministic quality gates
-  render/              HTML renderer (preview = Doc) and Google Docs export
+  render/              HTML (preview + Google Docs), Word (.docx), Google Docs export
   netsafe.py           SSRF-safe fetching of user-supplied links
-  playbook.py          platform specs, hook library, cliché and fake-visual lists
-  house_format.py      versioned format spec
-  store.py, memory.py  Firestore/local persistence, approved-script style memory
-  llm.py, llm_demo.py  OpenAI client wrapper, demo provider
-frontend/src/
-  pages/               New script, Script view, Scripts, House library, House format, Sign-in
-  components/ui.tsx    toasts, modal, tag input, status badge
-infra/                 setup-gcp.sh, deploy.sh, config.env.example
-docs/                  ARCHITECTURE.md, DEPLOYMENT.md
+  store.py, memory.py  local disk / Firestore persistence, usage caps, approved-script style memory
+frontend/src/          pages (New script, Script view, My scripts, Library, Format), UI kit, API client
+infra/                 entrypoint, Render blueprint (../render.yaml), Google Cloud setup + deploy scripts
+.github/workflows/     ci.yml, deploy.yml (Cloud Run), smoke.yml (live URL check)
 ```

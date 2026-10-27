@@ -1,0 +1,72 @@
+name: Smoke test (live URL)
+# Verifies a deployed instance end to end: page loads, API healthy, a real script is generated from a real
+# product page, and the Word/HTML exports work. Run it from the Actions tab, or: gh workflow run smoke.yml -f url=...
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Deployed app URL, e.g. https://scriptstudio.onrender.com"
+        required: true
+      product_url:
+        description: "A public product page to generate from"
+        default: "https://www.allbirds.com/products/mens-tree-runners"
+      generate:
+        description: "Run a full generation (uses OpenAI credits)"
+        type: boolean
+        default: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BASE: ${{ inputs.url }}
+      PRODUCT: ${{ inputs.product_url }}
+    steps:
+      - name: Page and API respond
+        run: |
+          set -euo pipefail
+          BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
+          for i in $(seq 1 12); do curl -fsS "$BASE/api/health" && break || sleep 10; done   # wake sleeping instances
+          curl -fsS "$BASE/" | grep -q '<div id="root">' && echo "✓ frontend served"
+          curl -fsS -c jar -b jar "$BASE/api/config" | tee config.json; echo
+          jq -e '.demo_mode == false' config.json >/dev/null || echo "::warning::Instance is in demo mode (no AI model)"
+          curl -fsS -c jar -b jar "$BASE/api/options" | jq -e '.platforms | length > 3' >/dev/null && echo "✓ options"
+
+      - name: Generate a script from a real product page
+        if: ${{ inputs.generate }}
+        run: |
+          set -euo pipefail
+          H=(-H "X-Requested-With: scriptwright" -H "Content-Type: application/json" -c jar -b jar)
+          BODY=$(jq -n --arg u "$PRODUCT" '{product_url:$u, platform:"instagram_reels", duration_sec:30,
+            client_brief:"Launch a 30-second Reel for first-time buyers who want everyday comfort. Objective: drive first purchase. Tone: warm, witty, honest. CTA: shop now."}')
+          ID=$(curl -fsS "${H[@]}" -X POST "$BASE/api/jobs" -d "$BODY" | jq -r .id)
+          echo "job $ID"; echo "JOB=$ID" >> "$GITHUB_ENV"
+          for i in $(seq 1 120); do
+            J=$(curl -fsS -c jar -b jar "$BASE/api/jobs/$ID")
+            S=$(jq -r .status <<<"$J"); L=$(jq -r '.events[-1] | "\(.stage) \(.status) \(.detail)"' <<<"$J")
+            echo "[$((i*10))s] $S — $L"
+            case "$S" in ready|needs_review|approved) break;; failed) jq -r .error <<<"$J"; exit 1;; esac
+            sleep 10
+          done
+          jq '{status, title: .script.title, scenes: (.script.scenes | length), facts_verified: ([.dossier.facts[] | select(.verified)] | length),
+               flags: [.flags[] | select(.severity != "info") | .message], qc: .qc_history[-1].scores, passed: .qc_history[-1].passed}' <<<"$J" | tee result.json
+          [[ "$(jq -r .status <<<"$J")" =~ ^(ready|needs_review)$ ]]
+
+      - name: Exports work
+        if: ${{ inputs.generate }}
+        run: |
+          set -euo pipefail
+          curl -fsS -c jar -b jar "$BASE/api/jobs/$JOB/preview" | grep -q "Scene-by-Scene" && echo "✓ preview"
+          curl -fsS -c jar -b jar -o script.docx -w "%{content_type}\n" "$BASE/api/jobs/$JOB/docx" | grep -q wordprocessingml && echo "✓ docx ($(stat -c%s script.docx) bytes)"
+          curl -fsS -c jar -b jar "$BASE/api/jobs/$JOB/download" | grep -q "<table" && echo "✓ html"
+          { echo "### ✅ $BASE is live and working"; echo '```json'; cat result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.generate && always() }}
+        with:
+          name: smoke-output
+          path: |
+            script.docx
+            result.json
+          if-no-files-found: ignore

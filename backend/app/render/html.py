@@ -52,7 +52,23 @@ class _R:
         return f"<ul style='margin:0 0 6pt 18pt;padding:0'>{lis}</ul>"
 
 
-def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True) -> str:
+# Preview only (never sent to Google Docs): on narrow screens, wide tables become stacked cards.
+RESPONSIVE_CSS = """<style>
+body{margin:20px}
+@media (max-width:720px){
+ body{margin:12px}
+ .sw-stack,.sw-stack tbody,.sw-stack tr,.sw-stack td{display:block!important;width:auto!important}
+ .sw-stack tr:first-child{display:none!important}
+ .sw-stack tr{border:1px solid #B7C2CF;border-radius:6px;margin:0 0 10px;overflow:hidden}
+ .sw-stack td{border:0!important;border-bottom:1px solid #EEF2F6!important}
+ .sw-stack td:last-child{border-bottom:0!important}
+ .sw-stack td::before{content:attr(data-label);display:block;font-weight:bold;color:#667;font-size:10px;
+   text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+}
+</style>"""
+
+
+def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True, responsive: bool = False) -> str:
     s = job.script
     assert s is not None
     r = _R(spec)
@@ -86,8 +102,9 @@ def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True) -> s
             continue
         n += 1
         parts.append(f"<h2 style='{r.h2}'>{n}. {_e(sec.label)}</h2>{body}")
+    head = "<meta name='viewport' content='width=device-width, initial-scale=1'>" + RESPONSIVE_CSS if responsive else ""
     return ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
-            f"<title>{_e(s.title)}</title></head><body style='{r.font}'>" + "".join(parts) + "</body></html>")
+            f"<title>{_e(s.title)}</title>{head}</head><body style='{r.font}'>" + "".join(parts) + "</body></html>")
 
 
 def _header(r, job, s: Script, plat) -> str:
@@ -129,10 +146,12 @@ def _characters(r, s: Script) -> str:
         return f"<p style='{r.p}'>No on-screen talent (product-only / hands-only).</p>"
     head = "".join(f"<th style='{r.th}'>{h}</th>" for h in ("ID", "Character", "Role", "Description", "Keep consistent"))
     rows = "".join(
-        f"<tr><td style='{r.td}width:6%'><b>{_e(c.id)}</b></td><td style='{r.td}width:14%'>{_e(c.name)}</td>"
-        f"<td style='{r.td}width:14%'>{_e(c.role)}</td><td style='{r.td}'>{_e(c.description)}</td>"
-        f"<td style='{r.td}width:26%'>{_e(c.continuity)}</td></tr>" for c in s.characters)
-    return f"<table style='{r.table}'><tr>{head}</tr>{rows}</table>"
+        f"<tr><td data-label='ID' style='{r.td}width:6%'><b>{_e(c.id)}</b></td>"
+        f"<td data-label='Character' style='{r.td}width:14%'>{_e(c.name)}</td>"
+        f"<td data-label='Role' style='{r.td}width:14%'>{_e(c.role)}</td>"
+        f"<td data-label='Description' style='{r.td}'>{_e(c.description)}</td>"
+        f"<td data-label='Keep consistent' style='{r.td}width:26%'>{_e(c.continuity)}</td></tr>" for c in s.characters)
+    return f"<table class='sw-stack' style='{r.table}'><tr>{head}</tr>{rows}</table>"
 
 
 def _product(r, job: Job, s: Script) -> str:
@@ -173,8 +192,9 @@ def _scenes(r, s: Script, spec: FormatSpec) -> str:
             "On-screen Text": _e(sc.on_screen_text) or "—",
             "SFX / Music": _e(sc.sfx_music) or "—",
         }
-        rows.append("<tr>" + "".join(f"<td style='{r.td}'>{cells.get(c, '')}</td>" for c in cols) + "</tr>")
-    return f"<table style='{r.table}'><tr>{head}</tr>{''.join(rows)}</table>"
+        rows.append("<tr>" + "".join(f"<td data-label='{_e(c)}' style='{r.td}'>{cells.get(c, '')}</td>"
+                                     for c in cols) + "</tr>")
+    return f"<table class='sw-stack' style='{r.table}'><tr>{head}</tr>{''.join(rows)}</table>"
 
 
 def _qc(r, qc: QCReport) -> str:

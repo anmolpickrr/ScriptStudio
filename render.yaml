@@ -1,0 +1,45 @@
+# One-click deploy: https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio
+# Render asks for OPENAI_API_KEY and ADMIN_PASSCODE, builds the Dockerfile and gives you a public https URL.
+services:
+  - type: web
+    name: scriptstudio
+    runtime: docker
+    plan: starter            # always-on; needed for the persistent disk below
+    region: singapore
+    healthCheckPath: /api/health
+    autoDeploy: true         # every push to main redeploys
+    disk:
+      name: scriptstudio-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false          # you paste it in the Render dashboard
+      - key: ADMIN_PASSCODE
+        sync: false          # unlocks house-format editing in the app
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_ENV
+        value: production
+      - key: AUTH_MODE
+        value: anonymous     # open link, private workspace per browser; switch to google for sign-in
+      - key: LLM_PROVIDER
+        value: openai
+      - key: STORE_BACKEND
+        value: local
+      - key: LOCAL_STORE_DIR
+        value: /data
+      - key: DAILY_JOB_LIMIT
+        value: "10"
+      - key: GLOBAL_DAILY_LIMIT
+        value: "100"
+      - key: MAX_CONCURRENT_JOBS
+        value: "3"
+      - key: MODEL_CREATIVE
+        value: gpt-5
+      - key: MODEL_CRITIC
+        value: gpt-5
+      - key: MODEL_EXTRACT
+        value: gpt-5-mini
+      - key: REASONING_EFFORT
+        value: medium

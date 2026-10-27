@@ -61,6 +61,11 @@ if ! gcloud secrets describe session-secret >/dev/null 2>&1; then
     gcloud secrets create session-secret --data-file=- --replication-policy automatic
 fi
 
+if ! gcloud secrets describe admin-passcode >/dev/null 2>&1; then
+  read -rsp "Choose an admin passcode for editing the house format (input hidden, Enter to skip): " PASS; echo
+  [[ -n "$PASS" ]] && printf %s "$PASS" | gcloud secrets create admin-passcode --data-file=- --replication-policy automatic
+fi
+
 if [[ -n "${GITHUB_REPO:-}" ]]; then
   say "Keyless deploys from GitHub ($GITHUB_REPO) via Workload Identity Federation"
   gcloud iam service-accounts describe "$DEPLOY_SA" >/dev/null 2>&1 || \
@@ -83,7 +88,7 @@ if [[ -n "${GITHUB_REPO:-}" ]]; then
 fi
 
 say "Done. Your app URL will be:  https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
-echo "  1. Add that URL as an Authorized JavaScript origin on your OAuth client (docs/DEPLOYMENT.md, step 3)."
+echo "  1. (Only if you use Google sign-in) add that URL as an Authorized JavaScript origin on your OAuth client."
 echo "  2. Deploy:  bash infra/deploy.sh"
 if [[ -n "${WIF:-}" ]]; then
   echo "  3. For auto-deploys, add these GitHub repository *variables* (Settings → Secrets and variables → Actions → Variables):"

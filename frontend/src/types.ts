@@ -1,14 +1,16 @@
 export type Severity = "blocker" | "major" | "minor" | "info";
 export type JobStatus = "queued" | "running" | "ready" | "needs_review" | "failed" | "approved";
 
-export interface User { email: string; name: string; picture?: string; admin: boolean }
+export interface User { email: string; name: string; picture?: string; admin: boolean; guest?: boolean; elevated?: boolean }
 
 export interface AppConfig {
-  auth_mode: "google" | "none";
+  auth_mode: "google" | "anonymous" | "none";
   google_client_id: string;
   demo_mode: boolean;
   user: User | null;
   daily_job_limit: number;
+  admin_unlock: boolean;
+  drive_export: boolean;
 }
 
 export interface PlatformSpec {

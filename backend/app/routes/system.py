@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from .. import playbook
-from ..auth import (COOKIE, User, admin_user, current_user, make_session, read_session, verify_google_id_token,
-                    verify_task_request)
+from ..auth import (COOKIE, User, admin_user, check_passcode, current_user, new_guest, session_user, set_session,
+                    verify_google_id_token, verify_task_request)
 from ..config import settings
 from ..house_format import FormatSpec
 from ..store import get_store
@@ -29,17 +29,17 @@ def status(user: User = Depends(admin_user)):
 
 
 @router.get("/api/config")
-def public_config(request: Request):
-    """What the browser needs before sign-in. Contains no secrets."""
-    user = None
-    if settings.auth_mode == "none":
-        user = {"email": "local@localhost", "name": "Local user", "admin": True}
-    else:
-        u = read_session(request.cookies.get(COOKIE, ""))
-        user = u.model_dump() if u else None
+def public_config(request: Request, response: Response):
+    """What the browser needs at startup. Contains no secrets. In anonymous mode this also
+    hands a first-time visitor their private guest workspace."""
+    user = session_user(request)
+    if settings.auth_mode == "anonymous" and not user:
+        user = new_guest()
+        set_session(response, user)
     return {"auth_mode": settings.auth_mode, "google_client_id": settings.google_client_id,
-            "demo_mode": settings.llm_provider == "demo", "user": user,
-            "daily_job_limit": settings.daily_job_limit, "drive_export": True}
+            "demo_mode": settings.llm_provider == "demo", "user": user.model_dump() if user else None,
+            "daily_job_limit": settings.daily_job_limit, "admin_unlock": bool(settings.admin_passcode),
+            "drive_export": bool(settings.google_client_id) or settings.auth_mode == "none"}
 
 
 class GoogleLogin(BaseModel):
@@ -51,8 +51,22 @@ def login(body: GoogleLogin, response: Response):
     if settings.auth_mode != "google":
         raise HTTPException(400, "Google sign-in is not enabled.")
     user = verify_google_id_token(body.credential)
-    response.set_cookie(COOKIE, make_session(user), max_age=settings.session_days * 86400, httponly=True,
-                        secure=settings.production, samesite="lax", path="/")
+    set_session(response, user)
+    return user
+
+
+class AdminUnlock(BaseModel):
+    passcode: str = Field(max_length=200)
+
+
+@router.post("/api/auth/admin")
+def unlock_admin(body: AdminUnlock, response: Response, user: User = Depends(current_user)):
+    if settings.auth_mode != "anonymous" or not settings.admin_passcode:
+        raise HTTPException(400, "Admin passcode is not enabled.")
+    if not check_passcode(body.passcode):
+        raise HTTPException(403, "That passcode isn't right.")
+    user = user.model_copy(update={"elevated": True, "admin": True})
+    set_session(response, user)
     return user
 
 

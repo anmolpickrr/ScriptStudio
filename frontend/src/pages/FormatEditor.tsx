@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Spinner, TagInput, useToast } from "../components/ui";
+import { PageSkeleton, Spinner, TagInput, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { FormatSpec } from "../types";
 
 export default function FormatEditor() {
-  const { user, options } = useSession();
+  const { user, options, config, setUser } = useSession();
+  const [passcode, setPasscode] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
   const toast = useToast();
   const [id, setId] = useState("house-v1");
   const [spec, setSpec] = useState<FormatSpec | null>(null);
@@ -13,7 +15,14 @@ export default function FormatEditor() {
   const canEdit = !!user?.admin;
 
   useEffect(() => { api.get<FormatSpec>(`/api/formats/${id}`).then(setSpec).catch((e) => toast(e.message, "error")); }, [id, toast]);
-  if (!spec) return <div className="center"><Spinner /></div>;
+  if (!spec) return <PageSkeleton />;
+
+  const unlock = async () => {
+    setUnlocking(true);
+    try { setUser(await api.post("/api/auth/admin", { passcode })); toast("Admin unlocked.", "ok"); setPasscode(""); }
+    catch (e) { toast((e as Error).message, "error"); }
+    finally { setUnlocking(false); }
+  };
 
   const move = (i: number, d: number) => {
     const s = [...spec.sections]; const j = i + d;
@@ -33,14 +42,23 @@ export default function FormatEditor() {
     <>
       <div className="page-head">
         <div className="grow"><h1>House format</h1>
-          <div className="muted">Every script and Google Doc follows this structure. Changes create a new version; past scripts keep theirs.</div></div>
+          <p>Every script and document follows this structure. Saving creates a new version; past scripts keep theirs.</p></div>
         {options && options.formats.length > 1 && (
           <select style={{ width: 220 }} value={id} onChange={(e) => setId(e.target.value)}>
             {options.formats.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
         )}
         {canEdit && <button className="btn" onClick={save} disabled={saving}>{saving && <Spinner />} Save v{spec.version + 1}</button>}
       </div>
-      {!canEdit && <div className="banner">Only admins can change the house format. You're viewing v{spec.version}.</div>}
+      {!canEdit && (config.auth_mode === "anonymous" && config.admin_unlock ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2>Admin access</h2>
+          <p className="hint">Enter the admin passcode to edit the house format. You're viewing v{spec.version}.</p>
+          <form className="row" style={{ marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); unlock(); }}>
+            <input type="password" style={{ maxWidth: 260 }} value={passcode} onChange={(e) => setPasscode(e.target.value)} placeholder="Admin passcode" aria-label="Admin passcode" />
+            <button className="btn" disabled={!passcode || unlocking}>{unlocking && <Spinner />}Unlock</button>
+          </form>
+        </div>
+      ) : <div className="banner info">Only admins can change the house format. You're viewing v{spec.version}.</div>)}
       <div className="grid2" style={{ alignItems: "start" }}>
         <div className="card">
           <h2>Document sections</h2>
@@ -59,13 +77,13 @@ export default function FormatEditor() {
           <div className="card">
             <h2>Quality bar</h2>
             <div className="grid2">
-              <div className="field"><span>Minimum critic score (1–5)</span>
+              <div className="field"><span className="label">Minimum critic score (1–5)</span>
                 <input type="number" min={1} max={5} disabled={!canEdit} value={spec.rules.min_critic_score} onChange={(e) => rule("min_critic_score", +e.target.value)} /></div>
-              <div className="field"><span>Max automatic revisions</span>
+              <div className="field"><span className="label">Max automatic revisions</span>
                 <input type="number" min={0} max={5} disabled={!canEdit} value={spec.rules.max_revisions} onChange={(e) => rule("max_revisions", +e.target.value)} /></div>
-              <div className="field"><span>Speech pace factor</span>
+              <div className="field"><span className="label">Speech pace factor</span>
                 <input type="number" step={0.05} min={0.6} max={1.4} disabled={!canEdit} value={spec.rules.max_words_per_sec_factor} onChange={(e) => rule("max_words_per_sec_factor", +e.target.value)} /></div>
-              <div className="field"><span>Minimum scene length (s)</span>
+              <div className="field"><span className="label">Minimum scene length (s)</span>
                 <input type="number" step={0.5} min={0.5} max={5} disabled={!canEdit} value={spec.rules.min_scene_sec} onChange={(e) => rule("min_scene_sec", +e.target.value)} /></div>
             </div>
             <label className="row small" style={{ marginTop: 10 }}><input type="checkbox" disabled={!canEdit} checked={spec.rules.require_cta_in_last_scene} onChange={(e) => rule("require_cta_in_last_scene", e.target.checked)} /> CTA must be in the final scene</label>

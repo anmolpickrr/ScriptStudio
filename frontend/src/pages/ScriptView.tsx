@@ -1,153 +1,200 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { getDriveToken } from "../google";
-import { label, Modal, Spinner, StatusBadge, timeAgo, useToast } from "../components/ui";
+import { hostOf, Icon, label, Menu, Modal, PageSkeleton, Spinner, StatusBadge, timeAgo, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Job, JobSummary, StageEvent } from "../types";
 
 const FULL = ["product_analysis", "brief", "reconcile", "concepts", "beats", "write", "qc"];
-const PARTIAL = ["beats", "write", "qc"];
-const STAGE_LABEL: Record<string, string> = {
-  product_analysis: "Product analysis", brief: "Brief", reconcile: "Accuracy check", concepts: "Concepts",
-  beats: "Beat sheet", write: "Writing", qc: "Quality review", revise: "Revising",
+const STAGE: Record<string, string> = {
+  product_analysis: "Reading the product page", brief: "Understanding the brief", reconcile: "Checking facts against the brief",
+  concepts: "Developing concepts", beats: "Building the beat sheet", write: "Writing the script", qc: "Editorial quality review",
+  revise: "Applying revisions",
 };
 const SEV_ORDER = ["blocker", "major", "minor", "info"];
 const BUSY = ["queued", "running"];
+type Tab = "script" | "review" | "flags" | "concepts" | "facts" | "history";
 
 export default function ScriptView() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
-  const { config, user } = useSession();
+  const { config, user, options } = useSession();
   const [job, setJob] = useState<Job | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [tab, setTab] = useState<Tab>("script");
   const [frameKey, setFrameKey] = useState(0);
   const [modal, setModal] = useState<"approve" | "revise" | "delete" | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [working, setWorking] = useState("");
 
   const load = useCallback(async () => {
-    try { setJob(await api.get<Job>(`/api/jobs/${id}`)); }
-    catch (e) { if (e instanceof ApiError && e.status === 404) setNotFound(true); else toast((e as Error).message, "error"); }
-  }, [id, toast]);
+    try { setJob(await api.get<Job>(`/api/jobs/${id}`)); setLoadError(""); }
+    catch (e) {
+      if (e instanceof ApiError && e.status === 404) setLoadError("404");
+      else setLoadError((e as Error).message);
+    }
+  }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setJob(null); setTab("script"); load(); }, [load]);
   const busy = !!job && BUSY.includes(job.status);
+  const wasBusy = useRef(false);
   useEffect(() => {
-    if (!busy) { setFrameKey((k) => k + 1); return; }
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
+    if (busy) { wasBusy.current = true; const t = setInterval(load, 2500); return () => clearInterval(t); }
+    if (wasBusy.current) { wasBusy.current = false; setFrameKey((k) => k + 1); }
   }, [busy, load]);
 
-  if (notFound) return <div className="empty"><h2>Script not found</h2><Link to="/scripts">Back to scripts</Link></div>;
-  if (!job) return <div className="center"><Spinner /></div>;
+  if (loadError === "404") return (
+    <div className="card empty"><div className="art">🔍</div><h2>Script not found</h2>
+      <p>It may have been deleted, or it belongs to another workspace.</p><Link className="btn" to="/scripts">Back to my scripts</Link></div>
+  );
+  if (!job) return loadError
+    ? <div className="card empty"><h2>Couldn't load this script</h2><p>{loadError}</p><button className="btn" onClick={load}>Try again</button></div>
+    : <PageSkeleton />;
 
   const qc = job.qc_history.at(-1);
   const flags = job.flags.filter((f) => f.severity !== "info").sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity));
   const blockers = flags.filter((f) => f.severity === "blocker").length;
+  const openFindings = qc ? qc.findings.filter((f) => f.severity === "blocker" || f.severity === "major") : [];
 
-  const rerun = async (path: string, body: unknown, msg: string) => {
-    try { await api.post<JobSummary>(`/api/jobs/${job.id}/${path}`, body); toast(msg); setModal(null); await load(); }
+  const act = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
+    setWorking(key);
+    try { await fn(); if (ok) toast(ok, "ok"); setModal(null); await load(); }
     catch (e) { toast((e as Error).message, "error"); }
+    finally { setWorking(""); }
   };
+  const rerun = (path: string, body: unknown, msg: string) => act(path, () => api.post<JobSummary>(`/api/jobs/${job.id}/${path}`, body), msg);
 
-  const exportDoc = async () => {
-    setExporting(true);
-    try {
-      const access_token = config.auth_mode === "google" ? await getDriveToken(config.google_client_id, user?.email) : undefined;
-      const r = await api.post<{ doc_url: string }>(`/api/jobs/${job.id}/export`, { access_token });
-      toast("Google Doc created.", "ok");
-      window.open(r.doc_url, "_blank", "noopener");
-      await load();
-    } catch (e) { toast((e as Error).message, "error"); }
-    finally { setExporting(false); }
-  };
+  const exportGoogle = () => act("export", async () => {
+    const access_token = config.auth_mode === "none" ? undefined : await getDriveToken(config.google_client_id, user?.guest ? undefined : user?.email);
+    const r = await api.post<{ doc_url: string }>(`/api/jobs/${job.id}/export`, { access_token });
+    window.open(r.doc_url, "_blank", "noopener");
+  }, "Google Doc created in your Drive.");
+
+  const download = (kind: "docx" | "download") => { window.location.href = `/api/jobs/${job.id}/${kind}`; };
+
+  const tabs: { key: Tab; label: string; count?: number; show: boolean }[] = [
+    { key: "script", label: "Script", show: true },
+    { key: "review", label: "Quality review", count: openFindings.length || undefined, show: !!qc },
+    { key: "flags", label: "Client flags", count: flags.length || undefined, show: flags.length > 0 },
+    { key: "concepts", label: "Concepts", count: job.concepts.length || undefined, show: job.concepts.length > 0 },
+    { key: "facts", label: "Product facts", show: !!job.dossier },
+    { key: "history", label: "History", show: job.revisions.length > 0 },
+  ];
 
   return (
     <>
       <div className="page-head">
         <div className="grow">
-          <div className="row"><h1>{job.script?.title || job.dossier?.name || "New script"}</h1><StatusBadge status={job.status} /></div>
-          <div className="muted small">
-            {job.dossier?.brand && <>{job.dossier.brand} · </>}{job.inputs.platform.replace(/_/g, " ")} · {job.inputs.duration_sec}s · created {timeAgo(job.created_at)}
-            {job.format_version && <> · {job.format_version}</>}
-          </div>
+          <div className="row" style={{ gap: 10 }}><h1>{job.script?.title || job.dossier?.name || "New script"}</h1><StatusBadge status={job.status} /></div>
+          <p className="small">
+            {[job.dossier?.brand || hostOf(job.inputs.product_url), options?.platforms[job.inputs.platform]?.label || job.inputs.platform, `${job.inputs.duration_sec}s`, `created ${timeAgo(job.created_at)}`].filter(Boolean).join(" · ")}
+          </p>
         </div>
         {job.script && !busy && (
           <div className="row">
-            <a className="btn ghost" href={`/api/jobs/${job.id}/download`}>Download</a>
-            <button className="btn secondary" onClick={() => setModal("revise")}>Revise with notes</button>
-            <button className="btn secondary" onClick={exportDoc} disabled={exporting}>{exporting && <Spinner />} {job.doc_url ? "Export again" : "Export to Google Docs"}</button>
-            <button className="btn" onClick={() => setModal("approve")} disabled={job.status === "approved"}>{job.status === "approved" ? "Approved" : "Approve"}</button>
+            <button className="btn secondary" onClick={() => setModal("revise")}>Revise</button>
+            <Menu trigger={(toggle) => (
+              <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={working === "export"}>
+                {working === "export" ? <Spinner /> : null} Export <Icon.down /></button>
+            )}>
+              {(close) => (<>
+                {config.drive_export && <button onClick={() => { close(); exportGoogle(); }}>Google Docs<small>Creates a formatted Doc in your Drive</small></button>}
+                <button onClick={() => { close(); download("docx"); }}>Word (.docx)<small>{config.drive_export ? "For Word, Pages or Drive" : "Opens in Google Docs, Word or Pages"}</small></button>
+                <button onClick={() => { close(); download("download"); }}>HTML<small>Same layout, for email or archiving</small></button>
+              </>)}
+            </Menu>
+            <button className="btn" onClick={() => setModal("approve")} disabled={job.status === "approved"}>{job.status === "approved" ? "✓ Approved" : "Approve"}</button>
+            <Menu trigger={(toggle) => <button className="btn ghost icon" aria-label="More actions" onClick={toggle}><Icon.more /></button>}>
+              {(close) => <button className="danger" onClick={() => { close(); setModal("delete"); }}>Delete script</button>}
+            </Menu>
           </div>
         )}
       </div>
 
-      <Progress job={job} />
+      {busy && <Progress job={job} />}
 
       {job.status === "failed" && (
-        <div className="card" style={{ borderColor: "#f1c4bf", marginTop: 16 }}>
-          <h2 style={{ color: "var(--bad)" }}>Generation failed</h2>
-          <p>{job.error || "Something went wrong."}</p>
-          <div className="row"><Link className="btn secondary" to="/new">Start a new script</Link>
-            {job.concepts.length > 0 && <button className="btn" onClick={() => rerun("concept", { index: job.concept_decision?.chosen_index ?? 0 }, "Retrying from the beat sheet…")}>Retry</button>}</div>
+        <div className="banner bad" role="alert">
+          <span>⛔</span>
+          <div style={{ flex: 1 }}><b>Generation failed.</b> {job.error || "Something went wrong."}
+            <div className="row" style={{ marginTop: 10 }}>
+              <button className="btn" disabled={!!working} onClick={() => rerun("retry", {}, "Restarted.")}>{working === "retry" && <Spinner />}Try again</button>
+              <Link className="btn secondary" to="/new">Edit inputs in a new script</Link>
+            </div>
+          </div>
         </div>
       )}
+      {job.error && job.status !== "failed" && !busy && <div className="banner">ℹ️ {job.error}</div>}
+      {blockers > 0 && !busy && job.script && (
+        <div className="banner bad"><span>⚠️</span><span><b>{blockers} blocker{blockers > 1 ? "s" : ""} for the client.</b> Some details couldn't be confirmed, so the script works around them. <button className="toggle-link" style={{ margin: 0 }} onClick={() => setTab("flags")}>Review flags</button></span></div>
+      )}
+      {job.doc_url && <div className="banner info">📄 <span>Google Doc: <a href={job.doc_url} target="_blank" rel="noopener noreferrer">open in Google Docs</a></span></div>}
 
-      {job.doc_url && <div className="card" style={{ marginTop: 16 }}>📄 Google Doc: <a href={job.doc_url} target="_blank" rel="noopener noreferrer">{job.doc_url}</a></div>}
+      {(job.script || !busy) && (
+        <>
+          <div className="tabs" role="tablist">
+            {tabs.filter((t) => t.show).map((t) => (
+              <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
+                {t.label}{t.count ? <span className="badge count">{t.count}</span> : null}
+              </button>
+            ))}
+          </div>
 
-      <div className="split" style={{ marginTop: 16 }}>
-        <div>
-          {job.script ? (
+          {tab === "script" && (job.script ? (
             <iframe key={frameKey} className="doc-frame" title="Script preview" src={`/api/jobs/${job.id}/preview`}
-                    onLoad={(e) => { const d = e.currentTarget.contentDocument; if (d) e.currentTarget.style.height = d.body.scrollHeight + 40 + "px"; }} />
-          ) : (
-            <div className="card empty">{busy ? <><Spinner /><p>Your script will appear here when it's written and reviewed.</p></> : <p>No script was produced.</p>}</div>
-          )}
-        </div>
+                    onLoad={(e) => {
+                      const fr = e.currentTarget; const d = fr.contentDocument;
+                      if (!d) return;
+                      const fit = () => { fr.style.height = d.documentElement.scrollHeight + 24 + "px"; };
+                      fit(); new ResizeObserver(fit).observe(d.body);
+                    }} />
+          ) : <div className="card empty"><p>No script was produced.</p></div>)}
 
-        <div className="stack">
-          {flags.length > 0 && (
-            <div className="card">
-              <h2>Flags for the client {blockers > 0 && <span className="badge failed">{blockers} blocker{blockers > 1 ? "s" : ""}</span>}</h2>
-              <p className="hint">Missing or conflicting information. The script never fills these gaps with invented details.</p>
-              {flags.map((f, i) => (
-                <div key={i} className={`flag ${f.severity}`}>
-                  <span className="sev">{f.severity.toUpperCase()}</span>{f.message}
-                  {f.suggestion && <div className="sug">→ {f.suggestion}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {qc && (
-            <div className="card">
-              <h2>Quality review</h2>
-              <p className="hint">{qc.passed ? "✓ Passed every gate" : "Needs an editor's eye"} · round {qc.iteration}{qc.summary && <> · {qc.summary}</>}</p>
+          {tab === "review" && qc && (
+            <div className="card stack">
+              <div className="card-head"><h2 className="grow">{qc.passed ? "✓ Passed every quality gate" : "Needs an editor's eye"}</h2>
+                <span className="muted small">Review round {qc.iteration}</span></div>
+              {qc.summary && <p className="muted" style={{ margin: 0 }}>{qc.summary}</p>}
               <div className="scores">
-                {Object.entries(qc.scores).map(([k, v]) => <div key={k} className={`score ${v < 4 ? "low" : ""}`}><b>{v}</b>{label(k)}</div>)}
+                {Object.entries(qc.scores).map(([k, v]) => <div key={k} className={`score ${v < 4 ? "low" : v === 5 ? "high" : ""}`}><b>{v}<span className="small muted">/5</span></b>{label(k)}</div>)}
               </div>
-              {qc.findings.filter((f) => f.severity !== "minor" && f.severity !== "info").map((f, i) => (
-                <div key={i} className={`flag ${f.severity}`}><span className="sev">{label(f.check).toUpperCase()}</span>
-                  {f.scene ? `Scene ${f.scene}: ` : ""}{f.message}{f.fix && <div className="sug">→ {f.fix}</div>}</div>
+              {qc.findings.length === 0 ? <p className="muted">No open findings.</p> : (
+                <div className="stack-sm">
+                  {qc.findings.filter((f) => f.severity !== "info").sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity)).map((f, i) => (
+                    <div key={i} className={`flag ${f.severity}`}><span className="sev">{label(f.check)}</span>
+                      {f.scene ? <b>Scene {f.scene}: </b> : null}{f.message}{f.fix && <div className="sug">→ {f.fix}</div>}</div>
+                  ))}
+                </div>
+              )}
+              {!qc.passed && <div><button className="btn secondary" onClick={() => setModal("revise")}>Revise with notes</button></div>}
+            </div>
+          )}
+
+          {tab === "flags" && (
+            <div className="card stack-sm">
+              <p className="muted" style={{ margin: "0 0 6px" }}>Missing or conflicting information to confirm with the client. The script never fills these gaps with invented details.</p>
+              {flags.map((f, i) => (
+                <div key={i} className={`flag ${f.severity}`}><span className="sev">{f.severity}</span>{f.message}{f.suggestion && <div className="sug">→ {f.suggestion}</div>}</div>
               ))}
             </div>
           )}
 
-          {job.concepts.length > 0 && (
-            <div className="card">
-              <h2>Concepts explored</h2>
-              {job.concept_decision?.director_notes && <p className="hint">Director's notes: {job.concept_decision.director_notes}</p>}
+          {tab === "concepts" && (
+            <div className="stack">
+              {job.concept_decision?.director_notes && <div className="banner info"><span>🎬</span><span><b>Director's notes:</b> {job.concept_decision.director_notes}</span></div>}
               <div className="concepts">
                 {job.concepts.map((c, i) => {
                   const chosen = i === (job.concept_decision?.chosen_index ?? 0);
+                  const score = job.concept_decision?.scores.find((s) => s.index === i);
                   return (
                     <div key={i} className={`concept ${chosen ? "chosen" : ""}`}>
-                      <b>{c.title}{chosen && <span className="badge" style={{ marginLeft: 6 }}>in script</span>}</b>
+                      <div className="row"><b style={{ flex: 1 }}>{c.title}</b>{chosen && <span className="badge ready">In script</span>}</div>
                       <div>{c.logline}</div>
                       <div className="hookline">Hook: “{c.hook_line}”</div>
                       <div className="muted small">{c.why_it_works}</div>
-                      {!chosen && !busy && <button className="btn secondary" onClick={() => rerun("concept", { index: i }, "Rewriting with this concept…")}>Use this concept</button>}
+                      {score && <div className="muted small">Hook {score.hook}/5 · Brief fit {score.brief_fit}/5 · Originality {score.originality}/5</div>}
+                      {!chosen && !busy && <div className="foot"><button className="btn secondary" disabled={!!working} onClick={() => rerun("concept", { index: i }, "Rewriting with this concept…")}>Use this concept</button></div>}
                     </div>
                   );
                 })}
@@ -155,49 +202,41 @@ export default function ScriptView() {
             </div>
           )}
 
-          {job.dossier && (
-            <div className="card">
-              <h2>Product facts</h2>
-              <p className="hint">From <a href={job.dossier.url} target="_blank" rel="noopener noreferrer">the product page</a>. Crossed-out items couldn't be verified and aren't used.</p>
+          {tab === "facts" && job.dossier && (
+            <div className="card stack-sm">
+              <p className="muted" style={{ margin: "0 0 6px" }}>From <a href={job.dossier.url} target="_blank" rel="noopener noreferrer">the product page</a>. Hover a fact to see the exact quote it's based on. Crossed-out items couldn't be verified and aren't used.</p>
               <ul className="facts">
                 {job.dossier.facts.map((f) => (
-                  <li key={f.id} title={`“${f.evidence.quote}” (${f.evidence.source})`} className={f.verified ? "" : "no"}>
-                    <b>{f.id}</b> · {f.statement} <span className="muted">[{f.category}]</span>
+                  <li key={f.id} title={`“${f.evidence.quote}”`} className={f.verified ? "" : "no"}>
+                    <span className="id">{f.id}</span><span>{f.statement}</span><span className="cat">{f.category}</span>
                   </li>
                 ))}
               </ul>
+              {job.dossier.packaging_description && <p className="small"><b>Packaging:</b> {job.dossier.packaging_description}</p>}
             </div>
           )}
 
-          {job.revisions.length > 0 && (
-            <div className="card">
-              <h2>History</h2>
+          {tab === "history" && (
+            <div className="card stack-sm">
               {job.revisions.slice().reverse().map((r, i) => (
-                <div key={i} className="small" style={{ marginTop: 6 }}>
-                  <b>{r.kind === "feedback" ? "Revised with notes" : "Switched concept"}</b> · {timeAgo(r.at)}
-                  <div className="muted">{r.detail}</div>
+                <div key={i} style={{ paddingBottom: 10, borderBottom: "1px solid var(--line-2)" }}>
+                  <b>{r.kind === "feedback" ? "Revised with notes" : "Switched concept"}</b> <span className="muted small">· {timeAgo(r.at)}</span>
+                  <div className="muted" style={{ whiteSpace: "pre-wrap" }}>{r.detail}</div>
                 </div>
               ))}
             </div>
           )}
-
-          {!busy && <button className="btn danger" onClick={() => setModal("delete")}>Delete script</button>}
-        </div>
-      </div>
+        </>
+      )}
 
       {modal === "revise" && <ReviseModal onClose={() => setModal(null)} onSubmit={(feedback) => rerun("revise", { feedback }, "Revising… this takes a minute or two.")} />}
       {modal === "approve" && <ApproveModal blockers={blockers} admin={!!user?.admin} onClose={() => setModal(null)}
-        onSubmit={async (body) => {
-          try { await api.post(`/api/jobs/${job.id}/approve`, body); toast("Approved and added to the house library.", "ok"); setModal(null); load(); }
-          catch (e) { toast((e as Error).message, "error"); }
-        }} />}
+        onSubmit={(body) => act("approve", () => api.post(`/api/jobs/${job.id}/approve`, body), "Approved and added to the house library.")} />}
       {modal === "delete" && (
         <Modal title="Delete this script?" onClose={() => setModal(null)} actions={<>
           <button className="btn ghost" onClick={() => setModal(null)}>Cancel</button>
-          <button className="btn danger" onClick={async () => {
-            try { await api.del(`/api/jobs/${job.id}`); toast("Deleted."); nav("/scripts"); } catch (e) { toast((e as Error).message, "error"); }
-          }}>Delete</button></>}>
-          <p>This removes it from your scripts. Google Docs you exported stay in your Drive.</p>
+          <button className="btn danger" disabled={!!working} onClick={() => act("delete", async () => { await api.del(`/api/jobs/${job.id}`); nav("/scripts"); }, "Script deleted.")}>Delete</button></>}>
+          <p className="muted">This removes it from your scripts. Exported Google Docs and downloads are not affected.</p>
         </Modal>
       )}
     </>
@@ -205,27 +244,40 @@ export default function ScriptView() {
 }
 
 function Progress({ job }: { job: Job }) {
-  const { steps, current, detail } = useMemo(() => {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const { plan, done, failed, current, started, details } = useMemo(() => {
     const lastRun = job.events.map((e) => e.stage).lastIndexOf("run");
-    const evs: StageEvent[] = lastRun >= 0 ? job.events.slice(lastRun) : job.events;
-    const isFull = (evs[0]?.detail || "").startsWith("Full") || evs.length === 0;
-    const plan = isFull ? FULL : evs.some((e) => e.stage === "revise") ? ["revise", "qc"] : PARTIAL;
+    const evs: StageEvent[] = lastRun >= 0 ? job.events.slice(lastRun) : [];
+    const label = evs[0]?.detail || "Full generation";
+    const plan = label.startsWith("Full") ? FULL : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
     const done = new Set(evs.filter((e) => e.status === "done").map((e) => e.stage));
     const failed = new Set(evs.filter((e) => e.status === "failed").map((e) => e.stage));
-    const last = [...evs].reverse().find((e) => e.stage !== "run");
-    return { steps: plan.map((s) => ({ s, done: done.has(s), failed: failed.has(s) })), current: last?.stage, detail: last?.detail };
-  }, [job.events]);
-  if (!BUSY.includes(job.status)) return null;
+    const lastStarted = [...evs].reverse().find((e) => e.stage !== "run" && e.status === "started");
+    const details: Record<string, string> = {};
+    evs.forEach((e) => { if (e.detail && e.stage !== "run") details[e.stage] = e.detail; });
+    return { plan, done, failed, current: lastStarted?.stage, started: evs[0]?.at || job.created_at, details };
+  }, [job.events, job.created_at]);
+  const elapsed = Math.max(0, Math.floor((now - new Date(started).getTime()) / 1000));
+  const pct = Math.min(95, Math.round(((plan.filter((s) => done.has(s)).length + 0.5) / plan.length) * 100));
+  const curStep = current === "revise" && plan.includes("qc") && done.has("revise") ? "qc" : current;
+
   return (
-    <div className="card">
-      <div className="row"><Spinner /><b>{job.status === "queued" ? "Queued…" : `Working: ${STAGE_LABEL[current || ""] || "starting"}`}</b></div>
-      <div className="timeline">
-        {steps.map(({ s, done, failed }) => (
-          <span key={s} className={`step ${failed ? "failed" : current === s || (s === "qc" && current === "revise") ? "active" : done ? "done" : ""}`}>
-            {done && current !== s ? "✓ " : ""}{STAGE_LABEL[s]}</span>
-        ))}
+    <div className="card" style={{ marginBottom: 16 }} aria-live="polite">
+      <div className="card-head">
+        <Spinner /><h2 className="grow">{job.status === "queued" ? "Queued — starting shortly" : STAGE[curStep || ""] || "Working…"}</h2>
+        <span className="muted small nowrap">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed</span>
       </div>
-      {detail && <div className="progress-detail">{detail}</div>}
+      <div className="bar"><div style={{ width: `${job.status === "queued" ? 3 : pct}%` }} /></div>
+      <ul className="steps">
+        {plan.map((s) => {
+          const isDone = done.has(s) && s !== curStep;
+          const cls = failed.has(s) ? "failed" : s === curStep ? "active" : isDone ? "done" : "";
+          return <li key={s} className={cls}><span className="ic">{isDone ? "✓" : ""}</span>{STAGE[s]}
+            {details[s] && (isDone || s === curStep) && <span className="detail">{details[s]}</span>}</li>;
+        })}
+      </ul>
+      <p className="hint" style={{ marginTop: 12 }}>Usually 2–5 minutes. You can leave this page — your script keeps generating and will be in <Link to="/scripts">My scripts</Link>.</p>
     </div>
   );
 }
@@ -238,9 +290,9 @@ function ReviseModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (f:
       <button className="btn ghost" onClick={onClose}>Cancel</button>
       <button className="btn" disabled={busy || text.trim().length < 5} onClick={async () => { setBusy(true); await onSubmit(text.trim()); setBusy(false); }}>
         {busy && <Spinner />} Revise script</button></>}>
-      <p className="hint">Write notes as you would to a writer: what to change and why. The revision goes through the full quality review again.</p>
-      <textarea autoFocus style={{ minHeight: 140 }} value={text} maxLength={5000} onChange={(e) => setText(e.target.value)}
-                placeholder="e.g. The hook feels slow; open on the spill. Make scene 3 dialogue less formal. Client wants the price on the end frame." />
+      <p className="muted" style={{ marginTop: 0 }}>Write notes as you would to a writer. The revision goes through the full quality review again.</p>
+      <textarea autoFocus style={{ minHeight: 150 }} value={text} maxLength={5000} onChange={(e) => setText(e.target.value)}
+                placeholder="e.g. Open on the spill instead of the alarm. Make scene 3 dialogue less formal. Add the price on the end frame." />
     </Modal>
   );
 }
@@ -255,18 +307,18 @@ function ApproveModal({ blockers, admin, onClose, onSubmit }: {
   const [ack, setAck] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
-    <Modal title="Approve as house standard" onClose={onClose} actions={<>
+    <Modal title="Approve this script" onClose={onClose} actions={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
       <button className="btn" disabled={busy || (blockers > 0 && !ack)} onClick={async () => {
         setBusy(true); await onSubmit({ notes, category, promote_note_to_format: promote, acknowledge_flags: ack }); setBusy(false);
       }}>{busy && <Spinner />} Approve</button></>}>
-      <p className="hint">Approved scripts become reference examples for future scripts on the same platform and hook type.</p>
-      <div className="field"><span>What makes this script good?</span>
-        <textarea className="short" value={notes} maxLength={2000} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. The hook is specific and visual; the product enters as the answer, not an ad break." /></div>
-      <div className="field"><span>Product category <em>· optional</em></span>
-        <input type="text" value={category} maxLength={100} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Skincare, Beverages" /></div>
-      {admin && notes && <label className="row small" style={{ marginTop: 10 }}><input type="checkbox" checked={promote} onChange={(e) => setPromote(e.target.checked)} /> Also add this note to the house format's editorial rules</label>}
-      {blockers > 0 && <label className="row small err" style={{ marginTop: 10 }}><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I confirm the {blockers} blocker flag(s) have been resolved with the client</label>}
+      <p className="muted" style={{ marginTop: 0 }}>Approved scripts join the house library and guide future scripts on the same platform and hook type.</p>
+      <div className="field"><label className="label" htmlFor="ap-notes">What makes it good? <em>· optional</em></label>
+        <textarea id="ap-notes" className="short" value={notes} maxLength={2000} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Specific, visual hook; the product enters as the answer, not an ad break." /></div>
+      <div className="field"><label className="label" htmlFor="ap-cat">Product category <em>· optional</em></label>
+        <input id="ap-cat" type="text" value={category} maxLength={100} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Skincare, Beverages" /></div>
+      {admin && notes && <label className="row small" style={{ marginTop: 12 }}><input type="checkbox" checked={promote} onChange={(e) => setPromote(e.target.checked)} /> Also add this note to the house format's editorial rules</label>}
+      {blockers > 0 && <label className="row small err" style={{ marginTop: 12 }}><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I've resolved the {blockers} blocker flag(s) with the client</label>}
     </Modal>
   );
 }

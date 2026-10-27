@@ -42,12 +42,13 @@ class Store(Protocol):
     def add_approved(self, item: ApprovedScript) -> None: ...
     def remove_approved(self, job_id: str) -> None: ...
     def list_approved(self, platform: Optional[str] = None) -> list[ApprovedScript]: ...
+    def consume(self, day: str, limits: dict[str, int]) -> Optional[str]: ...
 
 
 class LocalStore:
     def __init__(self, root: str | Path):
         self.root = Path(root)
-        for d in ("jobs", "formats", "approved"):
+        for d in ("jobs", "formats", "approved", "usage"):
             (self.root / d).mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 
@@ -105,6 +106,22 @@ class LocalStore:
     def remove_approved(self, job_id):
         (self.root / "approved" / f"{job_id}.json").unlink(missing_ok=True)
 
+    def consume(self, day, limits):
+        """Atomically check every counter against its limit (0 = unlimited) and, if all pass, add 1 to each.
+        Returns the first key that is over its limit, or None."""
+        path = self.root / "usage" / f"{day}.json"
+        with self._lock:
+            counts = json.loads(path.read_text()) if path.exists() else {}
+            for key, limit in limits.items():
+                if limit and counts.get(key, 0) >= limit:
+                    return key
+            for key in limits:
+                counts[key] = counts.get(key, 0) + 1
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(counts))
+            tmp.replace(path)
+        return None
+
     def list_approved(self, platform=None):
         items = [ApprovedScript.model_validate_json(p.read_text())
                  for p in (self.root / "approved").glob("*.json")]
@@ -113,6 +130,11 @@ class LocalStore:
 
 
 FieldFilter = None  # imported lazily with google-cloud-firestore
+
+
+def _fs_key(key: str) -> str:
+    # Firestore field names can't contain dots or slashes; emails have dots.
+    return key.replace(".", "_").replace("/", "_")
 
 
 class FirestoreStore:
@@ -172,6 +194,21 @@ class FirestoreStore:
 
     def remove_approved(self, job_id):
         self.db.collection("approved").document(job_id).delete()
+
+    def consume(self, day, limits):
+        from google.cloud import firestore
+        ref = self.db.collection("usage").document(day)
+
+        @firestore.transactional
+        def txn(t):
+            snap = ref.get(transaction=t)
+            counts = snap.to_dict() or {} if snap.exists else {}
+            for key, limit in limits.items():
+                if limit and counts.get(_fs_key(key), 0) >= limit:
+                    return key
+            t.set(ref, {_fs_key(k): counts.get(_fs_key(k), 0) + 1 for k in limits}, merge=True)
+            return None
+        return txn(self.db.transaction())
 
     def list_approved(self, platform=None):
         q = self.db.collection("approved")

@@ -86,6 +86,9 @@ class Pipeline:
     def run(self, job: Job) -> Job:
         """Full pipeline from the product link."""
         def steps(spec):
+            # a retry starts clean so flags and history don't pile up
+            job.flags, job.dossier, job.brief, job.concepts = [], None, None, []
+            job.concept_decision, job.beats, job.script, job.qc_history = None, None, None, []
             self._ingest(job)
             self._brief(job, spec)
             self._reconcile(job, spec)

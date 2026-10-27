@@ -15,6 +15,7 @@ from ..auth import User, current_user
 from ..config import settings
 from ..netsafe import UnsafeURL, check_url
 from ..render.gdocs import export_to_google_doc
+from ..render.docx import render_script_docx
 from ..render.html import render_script_html
 from ..schemas import Job, JobInputs, JobStatus
 from ..store import approve, get_store
@@ -32,17 +33,16 @@ def _get(job_id: str, user: User) -> Job:
     return job
 
 
-def _runs_today(user: User) -> int:
-    today = datetime.now(timezone.utc).date().isoformat()
-    n = 0
-    for j in get_store().list_jobs(owner=user.email, limit=500):
-        n += j.created_at.startswith(today)
-        n += sum(1 for r in j.revisions if r.at.startswith(today))
-    return n
-
-
 def _check_quota(user: User):
-    if settings.daily_job_limit and not user.admin and _runs_today(user) >= settings.daily_job_limit:
+    """Counts every generation and revision against the user's and the app's daily limits."""
+    day = datetime.now(timezone.utc).date().isoformat()
+    limits = {"global": settings.global_daily_limit}
+    if not user.admin:
+        limits[f"user:{user.email}"] = settings.daily_job_limit
+    over = get_store().consume(day, limits)
+    if over == "global":
+        raise HTTPException(429, "ScriptStudio has reached today's generation capacity. Please try again tomorrow.")
+    if over:
         raise HTTPException(429, f"You've reached today's limit of {settings.daily_job_limit} generations. "
                                  "It resets at midnight UTC.")
 
@@ -109,23 +109,37 @@ def delete_job(job_id: str, user: User = Depends(current_user)):
     return {"ok": True}
 
 
-def _html(job: Job, include_qc: bool) -> str:
+def _html(job: Job, include_qc: bool, responsive: bool = False) -> str:
     if not job.script:
         raise HTTPException(409, "The script isn't ready yet.")
-    return render_script_html(job, get_store().get_format(job.inputs.format_id), include_qc=include_qc)
+    return render_script_html(job, get_store().get_format(job.inputs.format_id), include_qc=include_qc,
+                              responsive=responsive)
+
+
+def _filename(job: Job) -> str:
+    return re.sub(r"[^\w-]+", "-", job.script.title if job.script else "script").strip("-")[:60] or "script"
 
 
 @router.get("/{job_id}/preview", response_class=HTMLResponse)
-def preview(job_id: str, qc: bool = True, user: User = Depends(current_user)):
-    return HTMLResponse(_html(_get(job_id, user), qc))
+def preview(job_id: str, qc: bool = False, user: User = Depends(current_user)):
+    return HTMLResponse(_html(_get(job_id, user), qc, responsive=True))
 
 
 @router.get("/{job_id}/download")
 def download(job_id: str, user: User = Depends(current_user)):
     job = _get(job_id, user)
-    name = re.sub(r"[^\w-]+", "-", job.script.title if job.script else "script").strip("-")[:60] or "script"
     return Response(_html(job, False), media_type="text/html",
-                    headers={"Content-Disposition": f'attachment; filename="{name}.html"'})
+                    headers={"Content-Disposition": f'attachment; filename="{_filename(job)}.html"'})
+
+
+@router.get("/{job_id}/docx")
+def download_docx(job_id: str, user: User = Depends(current_user)):
+    job = _get(job_id, user)
+    if not job.script:
+        raise HTTPException(409, "The script isn't ready yet.")
+    data = render_script_docx(job, get_store().get_format(job.inputs.format_id))
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={"Content-Disposition": f'attachment; filename="{_filename(job)}.docx"'})
 
 
 class ExportRequest(BaseModel):
@@ -136,7 +150,7 @@ class ExportRequest(BaseModel):
 @router.post("/{job_id}/export")
 def export(job_id: str, req: ExportRequest, user: User = Depends(current_user)):
     job = _get(job_id, user)
-    if settings.auth_mode == "google" and not req.access_token:
+    if settings.auth_mode != "none" and not req.access_token:
         raise HTTPException(400, "Google Drive permission is needed to create the Doc.")
     spec = get_store().get_format(job.inputs.format_id)
     brand = job.dossier.brand if job.dossier else (job.inputs.brand_name or "")
@@ -161,6 +175,14 @@ def revise(job_id: str, req: ReviseRequest, user: User = Depends(current_user)):
 
 class ConceptRequest(BaseModel):
     index: int = Field(ge=0, le=4)
+
+
+@router.post("/{job_id}/retry")
+def retry(job_id: str, user: User = Depends(current_user)):
+    job = _get(job_id, user)
+    if job.status != JobStatus.failed:
+        raise HTTPException(409, "Only failed scripts can be retried.")
+    return _rerun(job_id, user, TaskBody(job_id=job_id, action="generate", by=user.email))
 
 
 @router.post("/{job_id}/concept")

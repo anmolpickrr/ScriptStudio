@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,13 +13,24 @@ from .config import settings
 from .routes import jobs, system
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("scriptwright")
+log = logging.getLogger("scriptstudio")
 
-app = FastAPI(title="Scriptwright", version="1.0.0",
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    from .worker import recover_interrupted_jobs
+    try:
+        recover_interrupted_jobs()
+    except Exception:
+        log.exception("job recovery failed")
+    yield
+
+
+app = FastAPI(title="ScriptStudio", version="1.1.0", lifespan=lifespan,
               docs_url=None if settings.production else "/api/docs", redoc_url=None)
 
 for issue in settings.validate():
     log.warning("CONFIG: %s", issue)
+
 
 CSP = ("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client https://apis.google.com; "
        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: https:; "

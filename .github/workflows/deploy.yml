@@ -25,13 +25,14 @@ jobs:
       ALLOWED_EMAIL_DOMAINS: ${{ vars.ALLOWED_EMAIL_DOMAINS }}
       ALLOWED_EMAILS: ${{ vars.ALLOWED_EMAILS }}
       DAILY_JOB_LIMIT: ${{ vars.DAILY_JOB_LIMIT }}
+      GLOBAL_DAILY_LIMIT: ${{ vars.GLOBAL_DAILY_LIMIT }}
       MODEL_CREATIVE: ${{ vars.MODEL_CREATIVE }}
       MODEL_CRITIC: ${{ vars.MODEL_CRITIC }}
       MODEL_EXTRACT: ${{ vars.MODEL_EXTRACT }}
       REASONING_EFFORT: ${{ vars.REASONING_EFFORT }}
       LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { ref: "${{ github.event.workflow_run.head_sha || github.sha }}" }
       - uses: google-github-actions/auth@v2
         with:
