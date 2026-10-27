@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { SessionProvider, useSession } from "./session";
-import { ErrorBoundary, Icon, PageSkeleton, Spinner } from "./components/ui";
+import { BrandMark, ErrorBoundary, Icon, PageSkeleton, Spinner } from "./components/ui";
 import SignIn from "./pages/SignIn";
 import NewScript from "./pages/NewScript";
 import Scripts from "./pages/Scripts";
@@ -16,7 +16,7 @@ export default function App() {
         if (error && !session) return (
           <div className="center"><div className="card empty" style={{ maxWidth: 440 }}>
             <h2>Can't reach ScriptStudio</h2><p>{error}</p>
-            <button className="btn" onClick={() => window.location.reload()}>Try again</button></div></div>
+            <button className="btn primary" onClick={() => window.location.reload()}>Try again</button></div></div>
         );
         if (!session) return <div className="center"><Spinner /></div>;
         if (!session.user) return <SignIn />;
@@ -34,15 +34,15 @@ function Shell() {
   useEffect(() => { document.title = "ScriptStudio"; }, []);
 
   return (
-    <div className="shell">
+    <div className="shell canvas">
       <header className="topbar">
         <button className="btn ghost icon" aria-label="Open menu" onClick={() => setOpen(true)}><Icon.menu /></button>
-        <div className="brand grow"><img src="/favicon.svg" alt="" />ScriptStudio</div>
-        <NavLink to="/new" className="btn" style={{ minHeight: 34, padding: "6px 12px" }}>New</NavLink>
+        <div className="grow"><BrandMark small /></div>
+        <NavLink to="/new" className="btn primary sm">+ New</NavLink>
       </header>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside className={`side ${open ? "open" : ""}`} aria-label="Main navigation">
-        <div className="brand"><img src="/favicon.svg" alt="" />ScriptStudio</div>
+        <BrandMark />
         <nav className="nav">
           <NavLink to="/new" className="new"><Icon.plus />New script</NavLink>
           <NavLink to="/scripts"><Icon.doc />My scripts</NavLink>
@@ -50,6 +50,7 @@ function Shell() {
           <NavLink to="/format"><Icon.layout />House format</NavLink>
         </nav>
         <div className="spacer" />
+        <div className="tip"><b>Free to use</b>Write with ScriptStudio AI, or with your own ChatGPT or Claude plan.</div>
         <div className="me">
           {user!.picture ? <img src={user!.picture} alt="" referrerPolicy="no-referrer" />
             : <span className="avatar">{user!.guest ? "G" : (user!.name || user!.email)[0].toUpperCase()}</span>}
@@ -61,7 +62,7 @@ function Shell() {
         </div>
       </aside>
       <main className="content">
-        {config.demo_mode && <div className="banner"><span>⚠️</span><span><b>Demo mode.</b> No AI model is connected, so scripts are structural placeholders. Set <code>LLM_PROVIDER=openai</code> with an API key for real output.</span></div>}
+        {config.demo_mode && <div className="banner"><span>⚠️</span><span><b>Demo mode.</b> ScriptStudio AI isn't connected, so automatic scripts are placeholders. Add a free <code>GEMINI_API_KEY</code> to switch it on — the ChatGPT and Claude options work either way.</span></div>}
         <ErrorBoundary>
           {!options ? <PageSkeleton /> : (
             <Routes>

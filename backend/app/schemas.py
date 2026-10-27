@@ -48,6 +48,9 @@ class JobInputs(BaseModel):
     brand_name: Optional[Short] = None
     format_id: str = Field("house-v1", max_length=60)
     concept_count: int = Field(3, ge=1, le=5)
+    # auto = ScriptStudio's built-in AI pipeline; chatgpt / claude = the user runs one prompt in their own
+    # ChatGPT or Claude chat and pastes the answer back (no API needed).
+    engine: Literal["auto", "chatgpt", "claude"] = "auto"
 
 
 # ---------------------------------------------------------------- product truth
@@ -272,6 +275,7 @@ class JobStatus(str, Enum):
     running = "running"
     ready = "ready"                # passed every gate
     needs_review = "needs_review"  # finished, but a gate or blocker flag needs a human
+    awaiting_input = "awaiting_input"  # waiting for the user to paste their ChatGPT/Claude answer
     failed = "failed"
     approved = "approved"
 
@@ -288,6 +292,15 @@ class Revision(BaseModel):
     by: str = ""
     kind: Literal["feedback", "concept"]
     detail: str
+
+
+class RelayState(BaseModel):
+    kind: Literal["full", "revise"]
+    round: int = 1
+    prompt: str
+    source_text: str = ""      # what product facts are verified against
+    created_at: str = Field(default_factory=utcnow)
+    last_error: str = ""
 
 
 class Job(BaseModel):
@@ -308,5 +321,6 @@ class Job(BaseModel):
     doc_url: Optional[str] = None
     format_version: str = ""
     revisions: list[Revision] = []
+    relay: Optional[RelayState] = None
     updated_at: str = Field(default_factory=utcnow)
     error: str = ""

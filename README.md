@@ -19,6 +19,7 @@ ScriptStudio turns a **product link and a client brief** into a **production-rea
   - Product truth, fake-looking visuals and continuity
   - CTA, mandatories and exclusions
 - **Consistent output.** The model fills in structured fields and code renders the document, so every script has the same layout. You can edit and version the format in the app.
+- **Choose who writes it.** Use the free built-in AI (Google Gemini), or your own **ChatGPT** or **Claude** plan through a guided copy-and-paste step. Either way, the reply is fact-checked, quality-checked and formatted the same way.
 - **Learns your standard.** Approved scripts, with the editor's note on why they're good, guide future scripts.
 
 ## What you can do in the app

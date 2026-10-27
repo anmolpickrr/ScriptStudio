@@ -179,8 +179,13 @@ def quote_in_source(quote: str, source: str) -> bool:
     return bool(q) and len(q) >= 3 and q in _canon(source)
 
 
-def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, product_copy: str = "",
-                    extra_images: Optional[list[str]] = None) -> tuple[ProductDossier, list[Flag]]:
+class SourceUnavailable(RuntimeError):
+    pass
+
+
+def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str = "",
+                  extra_images: Optional[list[str]] = None) -> tuple[PageSource, str, list[Flag]]:
+    """Fetch the product page (or fall back to pasted copy) and build the text facts must be quoted from."""
     flags: list[Flag] = []
     try:
         page = page or fetch(url)
@@ -188,26 +193,25 @@ def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, produ
         raise ValueError(str(e))
     except Exception as e:
         if not product_copy.strip():
-            flags.append(Flag(severity="blocker", area="product",
-                              message=f"Could not read the product link ({e}).",
-                              suggestion="Check the URL is public, or paste the product copy into the form."))
-            return ProductDossier(url=url, unknowns=["Entire product page unreadable"]), flags
+            raise SourceUnavailable(f"Could not read the product link ({e}). Check the link is public, or paste "
+                                    "the product description into 'Page won't load?' and try again.")
         flags.append(Flag(severity="major", area="product",
                           message=f"Could not read the product link ({e}); using the pasted product copy only.",
                           suggestion="Double-check the pasted copy is current."))
         page = PageSource(url=url)
     page.image_urls = _dedupe((extra_images or []) + page.image_urls)
-
     text = corpus(page, product_copy)
     if len(page.text) < 200 and not page.structured and not product_copy.strip():
         flags.append(Flag(severity="major", area="product",
                           message="The product page exposes very little readable text (likely rendered by JavaScript).",
-                          suggestion="Paste the product description or upload the PDP copy so claims can be verified."))
+                          suggestion="Paste the product description so claims can be verified."))
+    return page, text, flags
 
-    ext = llm.structured(stage="extract_product", system=PRODUCT_EXTRACT_SYSTEM,
-                         user=f"PRODUCT URL: {url}\n\nSOURCE:\n{text}", schema=_Extraction,
-                         images=page.image_urls[:4])
 
+def build_dossier(url: str, page: PageSource, text: str, ext: "_Extraction", product_copy: str = "",
+                  ids: Optional[list[str]] = None) -> tuple[ProductDossier, list[Flag]]:
+    """Verify every extracted fact against the source text; unverifiable ones are kept but withheld."""
+    flags: list[Flag] = []
     facts: list[ProductFact] = []
     for i, f in enumerate(ext.facts, 1):
         if f.from_image:
@@ -216,12 +220,12 @@ def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, produ
             note = "Observed in product imagery; confirm against the physical pack." if ok else \
                 "Image-only evidence is not accepted for non-packaging claims."
         else:
-            ev = Evidence(source="client_copy" if _canon(f.quote) in _canon(product_copy) and product_copy
+            ev = Evidence(source="client_copy" if product_copy and _canon(f.quote) in _canon(product_copy)
                           else "product_page", quote=f.quote)
             ok = quote_in_source(f.quote, text)
             note = "" if ok else "Quote not found on the product page; excluded from the script."
-        facts.append(ProductFact(id=f"F{i}", category=f.category, statement=f.statement,
-                                 evidence=ev, verified=ok, note=note))
+        fid = ids[i - 1] if ids else f"F{i}"
+        facts.append(ProductFact(id=fid, category=f.category, statement=f.statement, evidence=ev, verified=ok, note=note))
 
     dropped = [f for f in facts if not f.verified]
     if dropped:
@@ -236,9 +240,21 @@ def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, produ
                                      "'[USE ACTUAL PACK]' until then."))
     for u in ext.unknowns:
         flags.append(Flag(severity="info", area="product", message=f"Not stated on product page: {u}"))
-
     dossier = ProductDossier(url=url, name=ext.product_name, brand=ext.brand, facts=facts,
                              packaging_description=ext.packaging_description,
-                             image_urls=page.image_urls, unknowns=ext.unknowns,
-                             source_excerpt=text[:20000])
+                             image_urls=page.image_urls, unknowns=ext.unknowns, source_excerpt=text[:20000])
     return dossier, flags
+
+
+def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, product_copy: str = "",
+                    extra_images: Optional[list[str]] = None) -> tuple[ProductDossier, list[Flag]]:
+    try:
+        page, text, flags = gather_source(url, page, product_copy, extra_images)
+    except SourceUnavailable as e:
+        return ProductDossier(url=url, unknowns=["Entire product page unreadable"]), [
+            Flag(severity="blocker", area="product", message=str(e))]
+    ext = llm.structured(stage="extract_product", system=PRODUCT_EXTRACT_SYSTEM,
+                         user=f"PRODUCT URL: {url}\n\nSOURCE:\n{text}", schema=_Extraction,
+                         images=page.image_urls[:4])
+    dossier, more = build_dossier(url, page, text, ext, product_copy)
+    return dossier, flags + more

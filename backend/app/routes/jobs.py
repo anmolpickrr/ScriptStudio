@@ -15,6 +15,7 @@ from ..auth import User, current_user
 from ..config import settings
 from ..netsafe import UnsafeURL, check_url
 from ..render.gdocs import export_to_google_doc
+from .. import relay
 from ..render.docx import render_script_docx
 from ..render.html import render_script_html
 from ..schemas import Job, JobInputs, JobStatus
@@ -69,7 +70,8 @@ def create_job(inputs: JobInputs, user: User = Depends(current_user)):
         get_store().get_format(inputs.format_id)
     except KeyError:
         raise HTTPException(422, f"Unknown format '{inputs.format_id}'.")
-    _check_quota(user)
+    if inputs.engine == "auto":
+        _check_quota(user)  # chat-relay scripts use the person's own ChatGPT/Claude, not our AI quota
     job = Job(id=uuid.uuid4().hex[:12], owner=user.email, inputs=inputs)
     get_store().save_job(job)
     _dispatch(job, TaskBody(job_id=job.id, action="generate", by=user.email))
@@ -97,6 +99,8 @@ def get_job(job_id: str, user: User = Depends(current_user)):
     data = job.model_dump(mode="json")
     if data.get("dossier"):
         data["dossier"].pop("source_excerpt", None)  # large and only needed server-side
+    if data.get("relay"):
+        data["relay"].pop("source_text", None)
     return data
 
 
@@ -170,7 +174,40 @@ class ReviseRequest(BaseModel):
 
 @router.post("/{job_id}/revise")
 def revise(job_id: str, req: ReviseRequest, user: User = Depends(current_user)):
+    job = _get(job_id, user)
+    if job.inputs.engine != "auto":
+        return _relay_revision(job, req.feedback, user, "feedback")
     return _rerun(job_id, user, TaskBody(job_id=job_id, action="revise", feedback=req.feedback, by=user.email))
+
+
+def _relay_revision(job: Job, request: str, user: User, kind: str):
+    if job.status in BUSY:
+        raise HTTPException(409, "This script is already being worked on.")
+    try:
+        relay.start_revision(job, get_store().get_format(job.inputs.format_id), request, user.email, kind)
+    except relay.RelayError as e:
+        raise HTTPException(409, str(e))
+    get_store().save_job(job)
+    return summary(job)
+
+
+class RelayAnswer(BaseModel):
+    answer: str = Field(min_length=2, max_length=400_000)
+
+
+@router.post("/{job_id}/relay")
+def relay_answer(job_id: str, req: RelayAnswer, user: User = Depends(current_user)):
+    """The user pastes their ChatGPT/Claude reply; it's validated, fact-checked and quality-checked."""
+    job = _get(job_id, user)
+    try:
+        relay.apply_answer(job, get_store().get_format(job.inputs.format_id), req.answer)
+    except relay.RelayError as e:
+        if job.relay:
+            job.relay.last_error = str(e)
+            get_store().save_job(job)
+        raise HTTPException(422, str(e))
+    get_store().save_job(job)
+    return summary(job)
 
 
 class ConceptRequest(BaseModel):
@@ -187,6 +224,15 @@ def retry(job_id: str, user: User = Depends(current_user)):
 
 @router.post("/{job_id}/concept")
 def use_concept(job_id: str, req: ConceptRequest, user: User = Depends(current_user)):
+    job = _get(job_id, user)
+    if job.inputs.engine != "auto":
+        if req.index >= len(job.concepts):
+            raise HTTPException(422, "That concept doesn't exist.")
+        c = job.concepts[req.index]
+        if job.concept_decision:
+            job.concept_decision.chosen_index = req.index
+        return _relay_revision(job, f"Rewrite the script from scratch using this concept instead: {c.model_dump_json()}",
+                               user, "concept")
     return _rerun(job_id, user, TaskBody(job_id=job_id, action="concept", concept_index=req.index, by=user.email))
 
 
@@ -198,7 +244,8 @@ def _rerun(job_id: str, user: User, task: TaskBody):
         raise HTTPException(409, "There's no script to revise yet.")
     if task.action == "concept" and task.concept_index >= len(job.concepts):
         raise HTTPException(422, "That concept doesn't exist.")
-    _check_quota(user)
+    if job.inputs.engine == "auto":
+        _check_quota(user)
     previous = job.status
     job.status = JobStatus.queued
     get_store().save_job(job)

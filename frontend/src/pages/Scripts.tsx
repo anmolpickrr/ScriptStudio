@@ -6,7 +6,7 @@ import type { JobStatus, JobSummary } from "../types";
 
 const FILTERS: { key: string; label: string; match: (s: JobStatus) => boolean }[] = [
   { key: "all", label: "All", match: () => true },
-  { key: "active", label: "In progress", match: (s) => s === "queued" || s === "running" },
+  { key: "active", label: "In progress", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
   { key: "review", label: "Needs review", match: (s) => s === "needs_review" || s === "failed" },
   { key: "ready", label: "Ready", match: (s) => s === "ready" },
   { key: "approved", label: "Approved", match: (s) => s === "approved" },
@@ -35,14 +35,14 @@ export default function Scripts() {
     <>
       <div className="page-head">
         <div className="grow"><h1>My scripts</h1><p>Everything you've generated, newest first.</p></div>
-        <Link className="btn" to="/new">+ New script</Link>
+        <Link className="btn primary" to="/new">+ New script</Link>
       </div>
       {jobs === null ? (
         <div className="card stack">{[0, 1, 2].map((i) => <Skeleton key={i} h={44} />)}</div>
       ) : jobs.length === 0 ? (
         <div className="card empty"><div className="art">✍️</div><h2>No scripts yet</h2>
           <p>Paste a product link and a client brief to get your first production-ready script.</p>
-          <Link className="btn" to="/new">Create a script</Link></div>
+          <Link className="btn primary" to="/new">Create a script</Link></div>
       ) : (
         <>
           <div className="filters">

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { getDriveToken } from "../google";
-import { hostOf, Icon, label, Menu, Modal, PageSkeleton, Spinner, StatusBadge, timeAgo, useToast } from "../components/ui";
+import { ENGINE_NAME, ENGINE_URL, hostOf, Icon, label, Menu, Modal, PageSkeleton, Spinner, StatusBadge, timeAgo, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Job, JobSummary, StageEvent } from "../types";
 
@@ -46,10 +46,10 @@ export default function ScriptView() {
 
   if (loadError === "404") return (
     <div className="card empty"><div className="art">🔍</div><h2>Script not found</h2>
-      <p>It may have been deleted, or it belongs to another workspace.</p><Link className="btn" to="/scripts">Back to my scripts</Link></div>
+      <p>It may have been deleted, or it belongs to another workspace.</p><Link className="btn primary" to="/scripts">Back to my scripts</Link></div>
   );
   if (!job) return loadError
-    ? <div className="card empty"><h2>Couldn't load this script</h2><p>{loadError}</p><button className="btn" onClick={load}>Try again</button></div>
+    ? <div className="card empty"><h2>Couldn't load this script</h2><p>{loadError}</p><button className="btn primary" onClick={load}>Try again</button></div>
     : <PageSkeleton />;
 
   const qc = job.qc_history.at(-1);
@@ -86,7 +86,7 @@ export default function ScriptView() {
     <>
       <div className="page-head">
         <div className="grow">
-          <div className="row" style={{ gap: 10 }}><h1>{job.script?.title || job.dossier?.name || "New script"}</h1><StatusBadge status={job.status} /></div>
+          <div className="row" style={{ gap: 10 }}><h1>{job.script?.title || job.dossier?.name || `Script for ${hostOf(job.inputs.product_url)}`}</h1><StatusBadge status={job.status} /></div>
           <p className="small">
             {[job.dossier?.brand || hostOf(job.inputs.product_url), options?.platforms[job.inputs.platform]?.label || job.inputs.platform, `${job.inputs.duration_sec}s`, `created ${timeAgo(job.created_at)}`].filter(Boolean).join(" · ")}
           </p>
@@ -104,7 +104,7 @@ export default function ScriptView() {
                 <button onClick={() => { close(); download("download"); }}>HTML<small>Same layout, for email or archiving</small></button>
               </>)}
             </Menu>
-            <button className="btn" onClick={() => setModal("approve")} disabled={job.status === "approved"}>{job.status === "approved" ? "✓ Approved" : "Approve"}</button>
+            <button className="btn primary" onClick={() => setModal("approve")} disabled={job.status === "approved"}>{job.status === "approved" ? "✓ Approved" : "Approve"}</button>
             <Menu trigger={(toggle) => <button className="btn ghost icon" aria-label="More actions" onClick={toggle}><Icon.more /></button>}>
               {(close) => <button className="danger" onClick={() => { close(); setModal("delete"); }}>Delete script</button>}
             </Menu>
@@ -113,13 +113,14 @@ export default function ScriptView() {
       </div>
 
       {busy && <Progress job={job} />}
+      {job.status === "awaiting_input" && job.relay && <RelayPanel job={job} onDone={load} />}
 
       {job.status === "failed" && (
         <div className="banner bad" role="alert">
           <span>⛔</span>
           <div style={{ flex: 1 }}><b>Generation failed.</b> {job.error || "Something went wrong."}
             <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn" disabled={!!working} onClick={() => rerun("retry", {}, "Restarted.")}>{working === "retry" && <Spinner />}Try again</button>
+              <button className="btn primary" disabled={!!working} onClick={() => rerun("retry", {}, "Restarted.")}>{working === "retry" && <Spinner />}Try again</button>
               <Link className="btn secondary" to="/new">Edit inputs in a new script</Link>
             </div>
           </div>
@@ -131,7 +132,7 @@ export default function ScriptView() {
       )}
       {job.doc_url && <div className="banner info">📄 <span>Google Doc: <a href={job.doc_url} target="_blank" rel="noopener noreferrer">open in Google Docs</a></span></div>}
 
-      {(job.script || !busy) && (
+      {(job.script || (!busy && job.status !== "awaiting_input")) && (
         <>
           <div className="tabs" role="tablist">
             {tabs.filter((t) => t.show).map((t) => (
@@ -194,7 +195,7 @@ export default function ScriptView() {
                       <div className="hookline">Hook: “{c.hook_line}”</div>
                       <div className="muted small">{c.why_it_works}</div>
                       {score && <div className="muted small">Hook {score.hook}/5 · Brief fit {score.brief_fit}/5 · Originality {score.originality}/5</div>}
-                      {!chosen && !busy && <div className="foot"><button className="btn secondary" disabled={!!working} onClick={() => rerun("concept", { index: i }, "Rewriting with this concept…")}>Use this concept</button></div>}
+                      {!chosen && !busy && <div className="foot"><button className="btn secondary" disabled={!!working} onClick={() => rerun("concept", { index: i }, job.inputs.engine === "auto" ? "Rewriting with this concept…" : `Prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)}>Use this concept</button></div>}
                     </div>
                   );
                 })}
@@ -229,7 +230,8 @@ export default function ScriptView() {
         </>
       )}
 
-      {modal === "revise" && <ReviseModal onClose={() => setModal(null)} onSubmit={(feedback) => rerun("revise", { feedback }, "Revising… this takes a minute or two.")} />}
+      {modal === "revise" && <ReviseModal engine={job.inputs.engine} onClose={() => setModal(null)}
+        onSubmit={(feedback) => rerun("revise", { feedback }, job.inputs.engine === "auto" ? "Revising… this takes a minute or two." : `Revision prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)} />}
       {modal === "approve" && <ApproveModal blockers={blockers} admin={!!user?.admin} onClose={() => setModal(null)}
         onSubmit={(body) => act("approve", () => api.post(`/api/jobs/${job.id}/approve`, body), "Approved and added to the house library.")} />}
       {modal === "delete" && (
@@ -250,14 +252,15 @@ function Progress({ job }: { job: Job }) {
     const lastRun = job.events.map((e) => e.stage).lastIndexOf("run");
     const evs: StageEvent[] = lastRun >= 0 ? job.events.slice(lastRun) : [];
     const label = evs[0]?.detail || "Full generation";
-    const plan = label.startsWith("Full") ? FULL : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
+    const plan = job.inputs.engine !== "auto" ? ["product_analysis"]
+      : label.startsWith("Full") ? FULL : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
     const done = new Set(evs.filter((e) => e.status === "done").map((e) => e.stage));
     const failed = new Set(evs.filter((e) => e.status === "failed").map((e) => e.stage));
     const lastStarted = [...evs].reverse().find((e) => e.stage !== "run" && e.status === "started");
     const details: Record<string, string> = {};
     evs.forEach((e) => { if (e.detail && e.stage !== "run") details[e.stage] = e.detail; });
     return { plan, done, failed, current: lastStarted?.stage, started: evs[0]?.at || job.created_at, details };
-  }, [job.events, job.created_at]);
+  }, [job.events, job.created_at, job.inputs.engine]);
   const elapsed = Math.max(0, Math.floor((now - new Date(started).getTime()) / 1000));
   const pct = Math.min(95, Math.round(((plan.filter((s) => done.has(s)).length + 0.5) / plan.length) * 100));
   const curStep = current === "revise" && plan.includes("qc") && done.has("revise") ? "qc" : current;
@@ -282,15 +285,17 @@ function Progress({ job }: { job: Job }) {
   );
 }
 
-function ReviseModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (f: string) => Promise<void> }) {
+function ReviseModal({ engine, onClose, onSubmit }: { engine: Job["inputs"]["engine"]; onClose: () => void; onSubmit: (f: string) => Promise<void> }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <Modal title="Revise with notes" onClose={onClose} actions={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
-      <button className="btn" disabled={busy || text.trim().length < 5} onClick={async () => { setBusy(true); await onSubmit(text.trim()); setBusy(false); }}>
-        {busy && <Spinner />} Revise script</button></>}>
-      <p className="muted" style={{ marginTop: 0 }}>Write notes as you would to a writer. The revision goes through the full quality review again.</p>
+      <button className="btn primary" disabled={busy || text.trim().length < 5} onClick={async () => { setBusy(true); await onSubmit(text.trim()); setBusy(false); }}>
+        {busy && <Spinner />} {engine === "auto" ? "Revise script" : "Prepare revision prompt"}</button></>}>
+      <p className="muted" style={{ marginTop: 0 }}>{engine === "auto"
+        ? "Write notes as you would to a writer. The revision goes through the full quality review again."
+        : `Write notes as you would to a writer. We'll turn them, plus any quality findings, into a revision prompt for ${ENGINE_NAME[engine]}.`}</p>
       <textarea autoFocus style={{ minHeight: 150 }} value={text} maxLength={5000} onChange={(e) => setText(e.target.value)}
                 placeholder="e.g. Open on the spill instead of the alarm. Make scene 3 dialogue less formal. Add the price on the end frame." />
     </Modal>
@@ -309,7 +314,7 @@ function ApproveModal({ blockers, admin, onClose, onSubmit }: {
   return (
     <Modal title="Approve this script" onClose={onClose} actions={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
-      <button className="btn" disabled={busy || (blockers > 0 && !ack)} onClick={async () => {
+      <button className="btn primary" disabled={busy || (blockers > 0 && !ack)} onClick={async () => {
         setBusy(true); await onSubmit({ notes, category, promote_note_to_format: promote, acknowledge_flags: ack }); setBusy(false);
       }}>{busy && <Spinner />} Approve</button></>}>
       <p className="muted" style={{ marginTop: 0 }}>Approved scripts join the house library and guide future scripts on the same platform and hook type.</p>
@@ -320,5 +325,80 @@ function ApproveModal({ blockers, admin, onClose, onSubmit }: {
       {admin && notes && <label className="row small" style={{ marginTop: 12 }}><input type="checkbox" checked={promote} onChange={(e) => setPromote(e.target.checked)} /> Also add this note to the house format's editorial rules</label>}
       {blockers > 0 && <label className="row small err" style={{ marginTop: 12 }}><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I've resolved the {blockers} blocker flag(s) with the client</label>}
     </Modal>
+  );
+}
+
+function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
+  const toast = useToast();
+  const relay = job.relay!;
+  const name = ENGINE_NAME[job.inputs.engine];
+  const [copied, setCopied] = useState(false);
+  const [opened, setOpened] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const [error, setError] = useState(relay.last_error);
+  const [busy, setBusy] = useState(false);
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(relay.prompt); }
+    catch {  // older browsers / no permission: select the text so ⌘C works
+      setShowPrompt(true);
+      setTimeout(() => { const el = document.getElementById("relay-prompt"); if (el) { const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); } }, 50);
+      toast("Press Ctrl/⌘ + C to copy the selected prompt.");
+      return;
+    }
+    setCopied(true); toast("Prompt copied.", "ok");
+  };
+  const submit = async () => {
+    setBusy(true); setError("");
+    try { await api.post(`/api/jobs/${job.id}/relay`, { answer }); toast("Script checked and formatted.", "ok"); await onDone(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <div className="card-head">
+        <h2 className="grow">{relay.kind === "full" ? `Write it with ${name}` : `Revise with ${name}`} <span className="muted small">· round {relay.round}</span></h2>
+      </div>
+      <p className="muted" style={{ margin: "4px 0 16px" }}>Three quick steps. Your {name} plan does the writing; ScriptStudio fact-checks the reply against the product page, runs the quality checks and formats it.</p>
+      <div className="relay-steps">
+        <div className={`relay-step ${copied ? "done" : ""}`}>
+          <span className="n">{copied ? "✓" : 1}</span>
+          <div>
+            <h3>Copy the prompt</h3>
+            <div className="muted small">It contains the product facts, brief, platform rules and the house format — about {Math.round(relay.prompt.length / 1000)}k characters.</div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button className="btn primary" onClick={copy}><Icon.copy /> {copied ? "Copied" : "Copy prompt"}</button>
+              <button className="btn ghost sm" onClick={() => setShowPrompt((v) => !v)}>{showPrompt ? "Hide" : "View"} prompt</button>
+            </div>
+            {showPrompt && <div id="relay-prompt" className="prompt-box">{relay.prompt}</div>}
+          </div>
+        </div>
+        <div className={`relay-step ${opened ? "done" : ""}`}>
+          <span className="n">{opened ? "✓" : 2}</span>
+          <div>
+            <h3>Paste it into {name}</h3>
+            <div className="muted small">Start a new chat and paste the prompt as your message. For best results pick the strongest model in your plan{job.inputs.engine === "chatgpt" ? " (e.g. a “Thinking” model)" : " (e.g. Opus or Sonnet)"}.</div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <a className="btn white" href={ENGINE_URL[job.inputs.engine]} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)}>Open {name} <Icon.ext /></a>
+            </div>
+          </div>
+        </div>
+        <div className="relay-step">
+          <span className="n">3</span>
+          <div>
+            <h3>Paste {name}'s reply here</h3>
+            <div className="muted small">Copy the whole answer (the JSON block). If it stops halfway, ask {name} to “continue” and paste everything.</div>
+            <textarea className="mono" style={{ marginTop: 12, minHeight: 150 }} value={answer} onChange={(e) => setAnswer(e.target.value)}
+                      placeholder={'```json\n{ "product_name": … }\n```'} aria-label={`${name} reply`} />
+            {error && <div className="banner bad" style={{ marginTop: 12, marginBottom: 0 }} role="alert"><span>⚠️</span><span>{error}</span></div>}
+            <div className="row" style={{ marginTop: 12 }}>
+              <button className="btn primary" disabled={busy || answer.trim().length < 2} onClick={submit}>{busy && <Spinner />} Check & format script</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

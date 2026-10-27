@@ -1,5 +1,6 @@
 export type Severity = "blocker" | "major" | "minor" | "info";
-export type JobStatus = "queued" | "running" | "ready" | "needs_review" | "failed" | "approved";
+export type JobStatus = "queued" | "running" | "ready" | "needs_review" | "failed" | "approved" | "awaiting_input";
+export type Engine = "auto" | "chatgpt" | "claude";
 
 export interface User { email: string; name: string; picture?: string; admin: boolean; guest?: boolean; elevated?: boolean }
 
@@ -31,6 +32,7 @@ export interface JobInputs {
   platform: string; duration_sec: number; creative_direction: string; references: Reference[];
   hook_type: string | null; theme: string | null; target_audience: string; tone: string; language: string;
   mandatories: string[]; exclusions: string[]; brand_name: string | null; format_id: string; concept_count: number;
+  engine: Engine;
 }
 
 export interface Flag { severity: Severity; area: string; message: string; suggestion: string }
@@ -58,6 +60,7 @@ export interface Job {
   concepts: Concept[]; concept_decision: ConceptDecision | null;
   script: { title: string; logline: string } | null;
   qc_history: QCReport[]; doc_url: string | null; format_version: string; revisions: Revision[]; error: string;
+  relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string } | null;
 }
 
 export interface JobSummary {

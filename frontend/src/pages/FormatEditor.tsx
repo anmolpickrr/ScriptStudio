@@ -47,7 +47,7 @@ export default function FormatEditor() {
           <select style={{ width: 220 }} value={id} onChange={(e) => setId(e.target.value)}>
             {options.formats.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
         )}
-        {canEdit && <button className="btn" onClick={save} disabled={saving}>{saving && <Spinner />} Save v{spec.version + 1}</button>}
+        {canEdit && <button className="btn primary" onClick={save} disabled={saving}>{saving && <Spinner />} Save v{spec.version + 1}</button>}
       </div>
       {!canEdit && (config.auth_mode === "anonymous" && config.admin_unlock ? (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -55,7 +55,7 @@ export default function FormatEditor() {
           <p className="hint">Enter the admin passcode to edit the house format. You're viewing v{spec.version}.</p>
           <form className="row" style={{ marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); unlock(); }}>
             <input type="password" style={{ maxWidth: 260 }} value={passcode} onChange={(e) => setPasscode(e.target.value)} placeholder="Admin passcode" aria-label="Admin passcode" />
-            <button className="btn" disabled={!passcode || unlocking}>{unlocking && <Spinner />}Unlock</button>
+            <button className="btn primary" disabled={!passcode || unlocking}>{unlocking && <Spinner />}Unlock</button>
           </form>
         </div>
       ) : <div className="banner info">Only admins can change the house format. You're viewing v{spec.version}.</div>)}

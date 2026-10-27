@@ -9,7 +9,7 @@ ScriptStudio runs entirely on free plans:
 | Database | Neon free Postgres | 0.5 GB, which holds thousands of scripts |
 | Code and checks | GitHub (public repo) | Free |
 
-Your ChatGPT Plus or Claude Pro subscriptions can't power the app: those are chat subscriptions, and apps need a separate "API" account. Gemini's free API key covers that.
+**Using ChatGPT or Claude subscriptions:** on the New script page, choose **Your ChatGPT** or **Your Claude**. ScriptStudio reads the product page and prepares one expert prompt. You paste it into your own chat and paste the reply back. ScriptStudio then verifies every product fact against the page, runs the quality checks and formats the script. Connecting a personal subscription directly isn't possible: neither company offers an API for personal plans, and automating their websites breaks their terms.
 
 ---
 
@@ -67,7 +67,7 @@ A free GitHub workflow then pings the app every 10 minutes during the day, so vi
 |---|---|---|
 | `DAILY_JOB_LIMIT` | 5 | Scripts + revisions per browser per day |
 | `GLOBAL_DAILY_LIMIT` | 20 | Scripts + revisions for the whole app per day (keeps you inside Gemini's free quota) |
-| `MODEL_CREATIVE`, `MODEL_CRITIC`, `MODEL_EXTRACT` | `gemini-2.5-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` | Change these if Google renames its free models |
+| `MODEL_CREATIVE`, `MODEL_CRITIC`, `MODEL_EXTRACT` | Gemini 3.5 Flash → 3.8 Flash → Flash Latest → 3.5 Flash Lite; extraction on Flash Lite | Comma-separated fallback lists. Busy models are skipped for that request, and retired ones are skipped for good. |
 | `LLM_PROVIDER` | `gemini` | `openai` (paid, set `OPENAI_API_KEY`), `groq` (free tier, set `GROQ_API_KEY`), `openrouter`, `compat` |
 | `AUTH_MODE` | `anonymous` | `google` requires Google sign-in (needs `GOOGLE_CLIENT_ID`; see the Google Docs section) |
 
@@ -95,7 +95,8 @@ For one-click export straight into Google Docs, you need a free Google OAuth cli
 |---|---|
 | "usage limit was reached" | The free AI quota for the minute or day is used up. Wait a few minutes, or until tomorrow. |
 | "rejected our credentials" | `GEMINI_API_KEY` is wrong. Create a new key in AI Studio and update it in Render → Environment. |
-| "configured AI model isn't available" | Google renamed its models. Set `MODEL_*` to current free models listed in AI Studio. |
+| "configured AI model isn't available" | Google retired every model in the list. Set `MODEL_*` to current free models listed in AI Studio. |
+| Automatic scripts are slow or fail at busy times | Free Gemini models are sometimes overloaded. The app falls back to other models automatically. Users can also pick **Your ChatGPT** or **Your Claude** on the New script page. |
 | Site takes about a minute to open | It was asleep (free plan). Turn on *Keep alive* above. |
 | Render status "Failed" | Open **Logs**. If it mentions `DATABASE_URL`, re-copy the Neon connection string. |
 | Product page can't be read | Some shops block automated access. Use *Page won't load?* in the form to paste the product copy. |

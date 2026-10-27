@@ -63,6 +63,17 @@ def execute(task: TaskBody) -> None:
     if not job or not _claimable(job):
         log.info("skip task %s (%s)", task.job_id, job.status if job else "missing")
         return
+    if job.inputs.engine != "auto":  # ChatGPT / Claude relay: only the page fetch runs here
+        from . import relay
+        from .ingest.product import SourceUnavailable
+        spec = store.get_format(job.inputs.format_id)
+        job.format_version = f"{spec.name} v{spec.version}"
+        try:
+            relay.prepare(job, spec)
+        except (SourceUnavailable, ValueError) as e:
+            job.status, job.error = JobStatus.failed, str(e)
+        store.save_job(job)
+        return
     pipe = Pipeline(get_llm(), store)
     if task.action == "generate":
         pipe.run(job)

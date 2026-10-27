@@ -43,7 +43,10 @@ PROVIDER_PRESETS: dict[str, dict] = {
     "openai": {"creative": "gpt-5", "critic": "gpt-5", "extract": "gpt-5-mini"},
     # Google AI Studio free tier: no card needed. ~10 requests/minute on Flash, so calls are spaced out.
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY",
-               "creative": "gemini-2.5-flash", "critic": "gemini-2.5-flash", "extract": "gemini-2.5-flash-lite",
+               # Comma-separated = fallback order: if a model is overloaded, retired or too slow, the next is used.
+               "creative": "gemini-3.5-flash,gemini-3.8-flash,gemini-flash-latest,gemini-3.5-flash-lite",
+               "critic": "gemini-3.5-flash,gemini-3.8-flash,gemini-flash-latest,gemini-3.5-flash-lite",
+               "extract": "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite",
                "min_interval": 7.0},
     "groq": {"base_url": "https://api.groq.com/openai/v1", "key_env": "GROQ_API_KEY",
              "creative": "llama-3.3-70b-versatile", "critic": "llama-3.3-70b-versatile",

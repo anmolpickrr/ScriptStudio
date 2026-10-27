@@ -1,5 +1,9 @@
+import { Link } from "react-router-dom";
 import { Component, createContext, ErrorInfo, KeyboardEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { JobStatus } from "../types";
+import type { Engine, JobStatus } from "../types";
+
+export const ENGINE_NAME: Record<Engine, string> = { auto: "ScriptStudio AI", chatgpt: "ChatGPT", claude: "Claude" };
+export const ENGINE_URL: Record<Engine, string> = { auto: "", chatgpt: "https://chatgpt.com/", claude: "https://claude.ai/new" };
 
 // ---------------------------------------------------------------- toasts
 type Toast = { id: number; kind: "info" | "error" | "ok"; text: string };
@@ -66,6 +70,7 @@ export function Menu({ trigger, children }: { trigger: (open: () => void) => Rea
 // ---------------------------------------------------------------- status badge
 const STATUS_LABEL: Record<JobStatus, string> = {
   queued: "Queued", running: "Writing", ready: "Ready", needs_review: "Needs review", failed: "Failed", approved: "Approved",
+  awaiting_input: "Waiting for your chat",
 };
 export function StatusBadge({ status }: { status: JobStatus }) {
   return <span className={`badge ${status}`}><span className="dot" />{STATUS_LABEL[status]}</span>;
@@ -107,6 +112,15 @@ export function Spinner({ label = "Loading" }: { label?: string }) { return <spa
 
 export function Skeleton({ h = 16, w = "100%", style }: { h?: number; w?: number | string; style?: React.CSSProperties }) {
   return <div className="sk" style={{ height: h, width: w, ...style }} />;
+}
+
+export function BrandMark({ small }: { small?: boolean }) {
+  return (
+    <Link className="brand" to="/new" aria-label="ScriptStudio by Fastrr">
+      <span className="mark" aria-hidden="true"><i /><i /></span>
+      <span className="word">ScriptStudio{!small && <small>by Fastrr</small>}</span>
+    </Link>
+  );
 }
 
 export function PageSkeleton() {
@@ -162,5 +176,8 @@ export const Icon = {
   layout: () => <svg viewBox="0 0 24 24" {...P}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>,
   menu: () => <svg viewBox="0 0 24 24" {...P} width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16" /></svg>,
   more: () => <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>,
+  copy: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>,
+  ext: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>,
+  spark: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></svg>,
   down: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="m6 9 6 6 6-6" /></svg>,
 };

@@ -35,6 +35,10 @@ Words
 - No brochure copy, no ad-speak clichés ("introducing", "game-changer", "say goodbye to", "unlock",
   "elevate", "revolutionary", "look no further", "transform your", "seamless", "journey").
 - Word budget: spoken words in a scene must fit its duration at the given words-per-second.
+- On-screen text earns its place: use supers for the hook, key proof points, mandatories, offers and the CTA, and
+  so a sound-off viewer can follow. Don't paste the VO line into on-screen text scene after scene.
+- Don't turn the VO into a list of specs. Pick the one or two facts that matter most to this audience and dramatise
+  them; a spec read aloud is not a benefit.
 
 Product truth
 - Every product claim, number, ingredient, spec, price or certification must come from a VERIFIED
@@ -80,6 +84,9 @@ VERIFIED PRODUCT FACTS. Report every place where:
 - information needed to write the script is missing  (minor, or major if it blocks the hook/CTA),
 - mandatories or exclusions contradict each other or the platform.
 For each, give a concrete suggestion (what to ask the client, or the safe fallback the script will use).
+The client brief is the source of truth for campaign details — CTA wording and destination (URLs, handles, store
+names), offers, promo codes, hashtags, launch dates and mandatories. Do NOT flag those for being absent from the
+product page; only flag them if the product page actively contradicts them.
 Return an empty list if there is genuinely nothing to flag. Do not invent problems."""
 
 CONCEPTS_SYSTEM = """You are an award-winning creative director. Develop {n} genuinely DIFFERENT concepts for this brief
@@ -139,7 +146,10 @@ Score 1-5 (5 = would ship to the client as-is):
   invented packaging or features.
 Findings: be specific (scene number, exact problem, exact fix - rewrite the line if it's a words problem).
 Severity: blocker = factually wrong/unsafe/off-brief; major = would be sent back by a client; minor = polish.
-Don't pad with praise or invent problems; if it's excellent, say so with few findings.
+Calibrate: 5 means a top agency would ship it untouched — rare. 4 = strong with small fixes. 3 = solid but generic or
+flawed. Most first drafts land at 3–4 on several dimensions. Always look for: generic hooks, spec-list VO, supers that
+just repeat the VO, product entering without a reason, weak or bolted-on endings.
+Don't pad with praise or invent problems; if it's genuinely excellent, say so with few findings.
 """ + CRAFT
 
 REVISE_SYSTEM = """You are the senior scriptwriter revising your script after editorial review.

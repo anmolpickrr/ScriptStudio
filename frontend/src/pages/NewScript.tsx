@@ -1,9 +1,9 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { hostOf, label, Spinner, TagInput, useToast } from "../components/ui";
+import { ENGINE_NAME, hostOf, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
 import { useSession } from "../session";
-import type { JobInputs, JobSummary, Reference } from "../types";
+import type { Engine, JobInputs, JobSummary, Reference } from "../types";
 
 const DRAFT_KEY = "ss:new-script-draft";
 
@@ -11,7 +11,18 @@ const EMPTY: JobInputs = {
   product_url: "", client_brief: "", product_copy: "", product_image_urls: [], platform: "instagram_reels",
   duration_sec: 30, creative_direction: "", references: [], hook_type: null, theme: "", target_audience: "",
   tone: "", language: "English", mandatories: [], exclusions: [], brand_name: "", format_id: "house-v1", concept_count: 3,
+  engine: "auto",
 };
+
+const ENGINES: { key: Engine; logo: string; cls: string; name: string; tagline: string; pill?: string }[] = [
+  { key: "auto", logo: "S", cls: "ss", name: "ScriptStudio AI", pill: "Free",
+    tagline: "Fully automatic. Concepts, script and an editorial review in 3–6 minutes." },
+  { key: "chatgpt", logo: "G", cls: "gpt", name: "Your ChatGPT",
+    tagline: "Uses your ChatGPT plan. We prepare one expert prompt, you paste the reply back." },
+  { key: "claude", logo: "C", cls: "claude", name: "Your Claude",
+    tagline: "Uses your Claude plan. We prepare one expert prompt, you paste the reply back." },
+];
+
 
 const BRIEF_TEMPLATE = `Objective: (e.g. drive first purchase / launch awareness / app installs)
 Audience: (who they are, what they care about)
@@ -78,12 +89,14 @@ export default function NewScript() {
   };
 
   const hookEntries = Object.entries(options!.hook_types);
+  const cta = f.engine === "auto" ? "Generate script" : `Prepare ${ENGINE_NAME[f.engine]} prompt`;
   const optionalCount = [f.hook_type, f.theme, f.creative_direction, f.references.length, f.mandatories.length, f.exclusions.length].filter(Boolean).length;
 
   return (
     <form onSubmit={submit} noValidate>
       <div className="page-head">
         <div className="grow">
+          <div className="eyebrow"><Icon.spark /> Script generator</div>
           <h1>New script</h1>
           <p>Add a product link and the client brief. Everything else is optional.</p>
         </div>
@@ -92,6 +105,22 @@ export default function NewScript() {
 
       <div className="compose">
         <div className="stack">
+          <section className="card">
+            <div className="step-title"><span className="num done">✓</span><h2>Choose who writes it</h2></div>
+            <p className="hint">All three are free for you. Every script gets the same fact-checking, quality checks and house format.</p>
+            <div className="engines" role="radiogroup" aria-label="AI engine" style={{ marginTop: 14 }}>
+              {ENGINES.map((e) => (
+                <button type="button" role="radio" aria-checked={f.engine === e.key} key={e.key}
+                        className={`engine ${f.engine === e.key ? "on" : ""}`} onClick={() => set("engine", e.key)}>
+                  {e.pill && <span className="pill">{e.pill}</span>}
+                  <span className="top"><span className={`logo ${e.cls}`}>{e.logo}</span><b>{e.name}</b></span>
+                  <span className="tagline">{e.tagline}</span>
+                  <span className="radio" />
+                </button>
+              ))}
+            </div>
+          </section>
+
           <Section n={1} title="Product" done={!errors.product_url}
                    hint="The product page is the source of truth for every product detail, claim and pack description.">
             <div className="grid2">
@@ -219,6 +248,7 @@ export default function NewScript() {
         <aside className="summary card" aria-label="Summary">
           <h2>Summary</h2>
           <dl>
+            <dt>Written by</dt><dd>{ENGINE_NAME[f.engine]}</dd>
             <dt>Product</dt><dd title={f.product_url}>{validUrl(f.product_url) ? hostOf(f.product_url) : "—"}</dd>
             <dt>Platform</dt><dd>{plat?.label}</dd>
             <dt>Length</dt><dd>{f.duration_sec}s · {plat?.aspect}</dd>
@@ -230,14 +260,14 @@ export default function NewScript() {
             <li className={!errors.client_brief ? "ok" : ""}><span className="tick">✓</span>Client brief</li>
             <li className="ok"><span className="tick">✓</span>Platform & length</li>
           </ul>
-          <button className="btn lg block" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : "Generate script"}</button>
-          <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>Takes 2–5 minutes. You can leave the page.</p>
+          <button className="btn primary lg block" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : cta}</button>
+          <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? "Takes 3–6 minutes. You can leave the page." : `Next: copy one prompt into ${ENGINE_NAME[f.engine]} and paste the reply back.`}</p>
         </aside>
       </div>
 
       <div className="mobile-cta">
         <div className="grow">{ready ? `${plat?.label} · ${f.duration_sec}s` : "Add a product link and brief to continue"}</div>
-        <button className="btn" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : "Generate"}</button>
+        <button className="btn primary" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : f.engine === "auto" ? "Generate" : "Prepare prompt"}</button>
       </div>
     </form>
   );

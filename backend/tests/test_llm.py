@@ -77,3 +77,24 @@ def test_bad_key_is_not_retried():
 def test_retry_after_parsing():
     assert llm._retry_after(Exception("Please retry in 23.5s")) == 24.5
     assert llm._retry_after(Exception("'retryDelay': '41s'")) == 42
+
+
+def test_busy_model_falls_back_for_this_call_only(monkeypatch):
+    monkeypatch.setattr(settings, "model_creative", "busy-model,good-model")
+    monkeypatch.setattr(llm, "_model_index", {})
+    seen = []
+    busy = httpx.Response(503, json={"error": {"message": "This model is currently experiencing high demand."}})
+    c = llm.ChatLLM(client([busy, busy, completion(json.dumps(BEATS))], seen))
+    assert c.structured(stage="beats", system="s", user="u", schema=BeatSheet).beats
+    assert [r["model"] for r in seen] == ["busy-model", "busy-model", "good-model"]
+    assert c._model("write") == "busy-model"  # still preferred next time
+
+
+def test_retired_model_is_skipped_for_good(monkeypatch):
+    monkeypatch.setattr(settings, "model_creative", "old-model,new-model")
+    monkeypatch.setattr(llm, "_model_index", {})
+    seen = []
+    gone = httpx.Response(404, json={"error": {"message": "This model is no longer available to new users."}})
+    c = llm.ChatLLM(client([gone, completion(json.dumps(BEATS))], seen))
+    assert c.structured(stage="beats", system="s", user="u", schema=BeatSheet).beats
+    assert [r["model"] for r in seen] == ["old-model", "new-model"] and c._model("write") == "new-model"

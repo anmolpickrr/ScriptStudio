@@ -117,12 +117,34 @@ class ChatLLM:
     def __init__(self, client=None):
         from openai import OpenAI
         self.client = client or OpenAI(api_key=settings.llm_api_key or "missing", base_url=settings.llm_base_url or None,
-                                       timeout=settings.llm_timeout_sec, max_retries=0)
+                                       timeout=min(settings.llm_timeout_sec, 120), max_retries=0)
         self.mode = 0  # index into MODES; moves down when a provider rejects a mode
 
-    def _model(self, stage: str) -> str:
+    def _candidates(self, stage: str) -> tuple[str, list[str]]:
+        """Models for a stage's tier; comma-separated settings are tried in order."""
         tier = STAGE_MODEL.get(stage, "creative")
-        return {"extract": settings.model_extract, "critic": settings.model_critic}.get(tier, settings.model_creative)
+        raw = {"extract": settings.model_extract, "critic": settings.model_critic}.get(tier, settings.model_creative)
+        return tier, [m.strip() for m in raw.split(",") if m.strip()]
+
+    def _model(self, stage: str, offset: int = 0) -> str:
+        tier, models = self._candidates(stage)
+        start = min(_model_index.get(tier, 0), len(models) - 1)
+        return models[min(start + offset, len(models) - 1)]
+
+    def _has_more(self, stage: str, offset: int) -> bool:
+        tier, models = self._candidates(stage)
+        return min(_model_index.get(tier, 0), len(models) - 1) + offset + 1 < len(models)
+
+    def _retire_model(self, stage: str, model: str) -> bool:
+        """A model the provider says no longer exists is skipped from now on (process-wide)."""
+        tier, models = self._candidates(stage)
+        with _model_lock:
+            i = _model_index.get(tier, 0)
+            if i + 1 >= len(models) or models[i] != model:
+                return False
+            _model_index[tier] = i + 1
+        log.warning("model %s unavailable; %s tier now uses %s", model, tier, models[i + 1])
+        return True
 
     @staticmethod
     def _schema(schema: type[BaseModel]) -> dict:
@@ -151,9 +173,10 @@ class ChatLLM:
         if imgs:
             content = [{"type": "text", "text": user}, *imgs]
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
-        repairs = transient = 0
+        repairs = transient = offset = busy = 0
         while True:
             mode = self.MODES[self.mode]
+            model = self._model(stage, offset)
             req = list(messages)
             kwargs: dict = {}
             if mode == "json_schema":
@@ -167,13 +190,29 @@ class ChatLLM:
             _throttle.wait(settings.llm_min_interval_sec)
             t0 = time.time()
             try:
-                resp = self.client.chat.completions.create(model=self._model(stage), messages=req, **kwargs)
+                resp = self.client.chat.completions.create(model=model, messages=req, **kwargs)
             except Exception as e:
                 status = getattr(e, "status_code", None)
                 if status == 400 and self.mode < len(self.MODES) - 1 and _is_format_error(e):
                     log.warning("provider rejected %s output mode (%s); falling back", mode, str(e)[:200])
                     self.mode += 1
                     continue
+                # retired model: drop it for good; busy (503) or unresponsive model: one quick retry, then the
+                # next model in the list for this request only (the preferred model is tried again next time)
+                if status == 404 and self._retire_model(stage, model):
+                    continue
+                if status == 503 and busy == 0:
+                    busy = 1
+                    log.warning("llm stage=%s model=%s busy; retrying once", stage, model)
+                    time.sleep(4)
+                    continue
+                if (status in (404, 503) or _is_timeout(e)) and self._has_more(stage, offset):
+                    log.warning("llm stage=%s model=%s %s; trying next model", stage, model,
+                                "unavailable" if status else "timed out")
+                    offset, busy = offset + 1, 0
+                    continue
+                if status == 503:
+                    offset, busy = 0, 0  # every model busy: wait, then start over from the preferred one
                 if status in (400, 401, 403, 404):
                     raise
                 transient += 1
@@ -184,7 +223,7 @@ class ChatLLM:
                 time.sleep(wait)
                 continue
             text = (resp.choices[0].message.content or "") if resp.choices else ""
-            log.info("llm stage=%s model=%s mode=%s %.1fs", stage, self._model(stage), mode, time.time() - t0)
+            log.info("llm stage=%s model=%s mode=%s %.1fs", stage, model, mode, time.time() - t0)
             try:
                 return schema.model_validate_json(_extract_json(text))
             except (ValidationError, ValueError) as e:
@@ -195,6 +234,14 @@ class ChatLLM:
                 messages = messages + [{"role": "assistant", "content": text[:20000]},
                                        {"role": "user", "content": "That JSON doesn't match the required schema:\n"
                                         f"{str(e)[:2000]}\nReturn the complete corrected JSON object only."}]
+
+
+_model_index: dict[str, int] = {}
+_model_lock = threading.Lock()
+
+
+def _is_timeout(e: Exception) -> bool:
+    return "timeout" in type(e).__name__.lower() or "timed out" in str(e).lower()
 
 
 def _is_format_error(e: Exception) -> bool:
