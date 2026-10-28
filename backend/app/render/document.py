@@ -7,6 +7,7 @@ between sections. Part 1 is the filled-in creative brief; part 2 is the video sc
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -242,6 +243,15 @@ def _quoted(line: str) -> str:
     return line if line[:1] in "\"“'‘" else f"“{line}”"
 
 
+def _button(text: str) -> str:
+    """The button label from a CTA description: "User taps 'Shop Now' button…" -> "Shop Now"."""
+    m = re.search(r"[‘'\"“]([^’'\"”]{2,30})[’'\"”]", text or "")
+    if m:
+        return m.group(1).strip()
+    t = re.sub(r"^(user\s+)?taps?\s+", "", (text or "").strip(), flags=re.I).rstrip(".")
+    return t if 0 < len(t.split()) <= 4 else ""
+
+
 def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
     s = job.script
     assert s is not None
@@ -252,7 +262,7 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
     model = s.talent_summary or "; ".join(f"{c.name}: {c.description}" for c in s.characters) \
         or i.creative_direction or "Product only (no talent)"
     product = s.product_line or (d.name if d and d.name else "") or (i.brand_name or "")
-    cta = i.cta or s.cta.action or s.cta.line
+    cta = i.cta or _button(s.cta.action) or _button(s.cta.on_screen_text) or s.cta.line
     header = [("Model", model), ("Language", i.language), ("Image Source", i.image_source or "Web"),
               ("Subtitle", "Yes" if i.subtitles else "No"),
               ("Format", f"{plat['label']} · {i.duration_sec}s · {i.aspect_ratio or plat['aspect']}"),
@@ -263,6 +273,10 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
     for c in s.characters:  # every character gets a continuity line, even if the writer missed one
         if c.name.lower() not in labels and not any(c.name.lower() in t.lower() for _, t in continuity):
             continuity.insert(0, (c.name, ". ".join(x.strip().rstrip(".") for x in (c.description, c.continuity) if x.strip()) + "."))
+    real = ("Use the real product images as the reference. Do not invent or alter the product.")
+    for n, (lbl, text) in enumerate(continuity):
+        if lbl.lower() == "product" and "image" not in text.lower():
+            continuity[n] = (lbl, f"{text.rstrip('.')}. {real}")
     if "product" not in labels:
         continuity.append(("Product", f"{product or 'The product'} exactly as on the product page. Use the real product "
                                       "images as the reference. Do not invent or alter the product."))

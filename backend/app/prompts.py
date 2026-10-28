@@ -145,6 +145,7 @@ Format obligations
   then props/wrapping, "Product: <the real product exactly as on the product page; use the real product images as
   reference; never invent or alter it>", and "Setting: <location, time of day, light>".
 - Characters' names are their on-screen role ("Wife", "Husband", "Creator") so lines read as VO (Wife).
+- `cta.action`: the button text only, e.g. "Shop Now" (no sentence).
 - `small_print`: a legal / compliance small line when the category needs one (e.g. "Comfort product. Not a medical
   treatment."), otherwise "".
 """ + CRAFT
