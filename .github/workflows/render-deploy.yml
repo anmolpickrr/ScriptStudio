@@ -1,0 +1,27 @@
+name: Deploy to Render
+
+# Render's own auto-deploy needs its GitHub app to see this repository. This does the same job without it:
+# after CI passes on main, it calls the service's Deploy Hook (Render → scriptstudio → Settings → Deploy Hook),
+# stored as the repository secret RENDER_DEPLOY_HOOK. Without the secret it does nothing.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK is not set, so Render was not asked to deploy. See docs/DEPLOYMENT.md."
+            exit 0
+          fi
+          curl -fsS -X POST -m 60 "$HOOK" -o /dev/null -w "Render accepted the deploy (HTTP %{http_code})\n"

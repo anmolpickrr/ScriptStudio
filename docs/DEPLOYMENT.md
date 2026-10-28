@@ -100,3 +100,13 @@ For one-click export straight into Google Docs, you need a free Google OAuth cli
 | Site takes about a minute to open | It was asleep (free plan). Turn on *Keep alive* above. |
 | Render status "Failed" | Open **Logs**. If it mentions `DATABASE_URL`, re-copy the Neon connection string. |
 | Product page can't be read | Some shops block automated access. Use *Page won't load?* in the form to paste the product copy. |
+
+## Automatic deploys to Render
+
+`.github/workflows/render-deploy.yml` redeploys the Render service after CI passes on `main`. One-time setup:
+
+1. Render → **scriptstudio** → **Settings** → **Deploy Hook**: click the copy icon.
+2. GitHub → repository **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+   Name: `RENDER_DEPLOY_HOOK`, Secret: paste the link, **Add secret**.
+
+Keep the hook private: anyone with it can trigger a deploy (if it leaks, click **Regenerate hook** in Render and update the secret).
