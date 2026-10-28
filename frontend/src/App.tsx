@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { SessionProvider, useSession } from "./session";
-import { BrandMark, ErrorBoundary, Icon, PageSkeleton, Spinner } from "./components/ui";
+import { BrandMark, ErrorBoundary, Icon, PageSkeleton } from "./components/ui";
 import SignIn from "./pages/SignIn";
+import Home from "./pages/Home";
 import NewScript from "./pages/NewScript";
 import Scripts from "./pages/Scripts";
 import ScriptView from "./pages/ScriptView";
@@ -12,13 +13,13 @@ import FormatEditor from "./pages/FormatEditor";
 export default function App() {
   return (
     <SessionProvider>
-      {(session, error) => {
+      {(session, error, waking) => {
         if (error && !session) return (
           <div className="center"><div className="card empty" style={{ maxWidth: 440 }}>
             <h2>Can't reach ScriptStudio</h2><p>{error}</p>
             <button className="btn primary" onClick={() => window.location.reload()}>Try again</button></div></div>
         );
-        if (!session) return <div className="center"><Spinner /></div>;
+        if (!session) return <Waking slow={waking} />;
         if (!session.user) return <SignIn />;
         return <Shell />;
       }}
@@ -45,6 +46,7 @@ function Shell() {
         <BrandMark />
         <nav className="nav">
           <NavLink to="/new" className="new"><Icon.plus />New script</NavLink>
+          <NavLink to="/" end><Icon.home />Home</NavLink>
           <NavLink to="/scripts"><Icon.doc />My scripts</NavLink>
           <NavLink to="/library"><Icon.star />House library</NavLink>
           <NavLink to="/format"><Icon.layout />House format</NavLink>
@@ -66,17 +68,35 @@ function Shell() {
         <ErrorBoundary>
           {!options ? <PageSkeleton /> : (
             <Routes>
-              <Route path="/" element={<Navigate to="/new" replace />} />
+              <Route path="/" element={<Home />} />
               <Route path="/new" element={<NewScript />} />
               <Route path="/scripts" element={<Scripts />} />
               <Route path="/scripts/:id" element={<ScriptView />} />
               <Route path="/library" element={<Library />} />
               <Route path="/format" element={<FormatEditor />} />
-              <Route path="*" element={<div className="empty"><h2>Page not found</h2><NavLink to="/new">Start a new script</NavLink></div>} />
+              <Route path="*" element={<div className="empty"><h2>Page not found</h2><NavLink to="/">Go to the home page</NavLink></div>} />
             </Routes>
           )}
         </ErrorBoundary>
       </main>
+    </div>
+  );
+}
+
+/** First load: the free server sleeps when idle, so explain the wait instead of showing a bare spinner. */
+function Waking({ slow }: { slow: boolean }) {
+  return (
+    <div className="waking canvas">
+      <div className="waking-card">
+        <BrandMark />
+        <div className="waking-bars" aria-hidden="true"><i /><i /><i /></div>
+        {slow ? (
+          <>
+            <h2>Waking up the studio…</h2>
+            <p>ScriptStudio runs on free hosting that naps when nobody is using it. This first load can take up to a minute; after that it's quick.</p>
+          </>
+        ) : <p className="muted">Loading…</p>}
+      </div>
     </div>
   );
 }

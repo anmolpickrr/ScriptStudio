@@ -71,7 +71,8 @@ export default function ScriptView() {
     window.open(r.doc_url, "_blank", "noopener");
   }, "Google Doc created in your Drive.");
 
-  const download = (kind: "docx" | "download") => { window.location.href = `/api/jobs/${job.id}/${kind}`; };
+  const download = (kind: "docx" | "download") => act(kind, () =>
+    api.download(`/api/jobs/${job.id}/${kind}`, `${job.script?.title || "script"}.${kind === "docx" ? "docx" : "html"}`));
 
   const tabs: { key: Tab; label: string; count?: number; show: boolean }[] = [
     { key: "script", label: "Script", show: true },
@@ -95,8 +96,8 @@ export default function ScriptView() {
           <div className="row">
             <button className="btn secondary" onClick={() => setModal("revise")}>Revise</button>
             <Menu trigger={(toggle) => (
-              <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={working === "export"}>
-                {working === "export" ? <Spinner /> : null} Export <Icon.down /></button>
+              <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={["export", "docx", "download"].includes(working)}>
+                {["export", "docx", "download"].includes(working) ? <Spinner /> : null} Export <Icon.down /></button>
             )}>
               {(close) => (<>
                 {config.drive_export && <button onClick={() => { close(); exportGoogle(); }}>Google Docs<small>Creates a formatted Doc in your Drive</small></button>}
@@ -143,13 +144,7 @@ export default function ScriptView() {
           </div>
 
           {tab === "script" && (job.script ? (
-            <iframe key={frameKey} className="doc-frame" title="Script preview" src={`/api/jobs/${job.id}/preview`}
-                    onLoad={(e) => {
-                      const fr = e.currentTarget; const d = fr.contentDocument;
-                      if (!d) return;
-                      const fit = () => { fr.style.height = d.documentElement.scrollHeight + 24 + "px"; };
-                      fit(); new ResizeObserver(fit).observe(d.body);
-                    }} />
+            <ScriptPreview key={frameKey} jobId={job.id} />
           ) : <div className="card empty"><p>No script was produced.</p></div>)}
 
           {tab === "review" && qc && (
@@ -400,5 +395,28 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
         </div>
       </div>
     </div>
+  );
+}
+
+/** The rendered document, fetched with the session (works when the API lives on another origin). */
+function ScriptPreview({ jobId }: { jobId: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    api.text(`/api/jobs/${jobId}/preview`).then((h) => alive && setHtml(h.replace("<head>", '<head><base target="_blank">')))
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => { alive = false; };
+  }, [jobId]);
+  if (err) return <div className="card empty"><p>{err}</p></div>;
+  if (html === null) return <div className="doc-frame doc-loading"><Spinner label="Loading the script" /></div>;
+  return (
+    <iframe className="doc-frame" title="Script preview" srcDoc={html} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            onLoad={(e) => {
+              const fr = e.currentTarget; const d = fr.contentDocument;
+              if (!d) return;
+              const fit = () => { fr.style.height = d.documentElement.scrollHeight + 24 + "px"; };
+              fit(); new ResizeObserver(fit).observe(d.body);
+            }} />
   );
 }

@@ -1,19 +1,10 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { clearDraft, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { ENGINE_NAME, hostOf, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
-
-const DRAFT_KEY = "ss:new-script-draft:v2";
-
-const EMPTY: JobInputs = {
-  product_url: "", client_brief: "", product_copy: "", product_image_urls: [], platform: "instagram_reels",
-  duration_sec: 30, creative_direction: "", references: [], hook_type: null, theme: "", target_audience: "",
-  tone: "", language: "English", mandatories: [], exclusions: [], brand_name: "", format_id: "house-v1", concept_count: 3,
-  engine: "auto", logo_url: "", brand_guidelines_url: "", asset_links: [], ad_type: "Video", headline_ideas: [],
-  key_usps: [], offer: "", cta: "", design_style: "", elements_to_highlight: [],
-};
 
 const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
   { key: "auto", logo: "S", cls: "ss", hint: "Free and fully automatic — concepts, script and an editorial review in 3–6 minutes." },
@@ -24,12 +15,6 @@ const AD_TYPES = ["Video", "UGC video", "Product demo", "Testimonial", "Unboxing
 const DESIGN_STYLES = ["Creator / UGC", "Lifestyle", "Premium studio", "Minimal product", "Documentary", "Animated / motion"];
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
 
-function loadDraft(): JobInputs {
-  try { return { ...EMPTY, ...JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}") }; } catch { return EMPTY; }
-}
-function validUrl(u: string) {
-  try { const x = new URL(u.trim()); return /^https?:$/.test(x.protocol) && x.hostname.includes("."); } catch { return false; }
-}
 const optUrl = (u: string) => !u.trim() || validUrl(u);
 
 /** If the free-text brief is thin, build one from the structured fields so the writer has everything. */
@@ -52,15 +37,22 @@ export default function NewScript() {
   const nav = useNavigate();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [f, setF] = useState<JobInputs>(loadDraft);
+  const loc = useLocation();
+  const [params, setParams] = useSearchParams();
+  // quick start from the home page: ?url=…&engine=…
+  const [f, setF] = useState<JobInputs>(() => {
+    const d = loadDraft(); const url = params.get("url"); const engine = params.get("engine") as Engine | null;
+    return { ...d, ...(url ? { product_url: url } : {}), ...(engine && ["auto", "chatgpt", "claude"].includes(engine) ? { engine } : {}) };
+  });
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState<string[]>([]);
+  const [imported, setImported] = useState<string[]>(() => (loc.state as { imported?: string[] } | null)?.imported || []);
+  useEffect(() => { if (params.size) setParams({}, { replace: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [showCopy, setShowCopy] = useState(() => !!f.product_copy);
   const set = <K extends keyof JobInputs>(k: K, v: JobInputs[K]) => setF((x) => ({ ...x, [k]: v }));
 
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(f)); } catch { /* storage unavailable */ } }, [f]);
+  useEffect(() => saveDraft(f), [f]);
 
   const plat = options!.platforms[f.platform];
   useEffect(() => {
@@ -86,13 +78,9 @@ export default function NewScript() {
     const file = ev.target.files?.[0];
     ev.target.value = "";
     if (!file) return;
-    if (file.size > 5_000_000) { toast("That file is larger than 5 MB.", "error"); return; }
     setImporting(true);
     try {
-      const buf = new Uint8Array(await file.arrayBuffer());
-      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      const r = await api.post<{ fields: Partial<JobInputs>; recognised: string[] }>("/api/brief/import",
-        { filename: file.name, data_base64: btoa(bin) });
+      const r = await importBriefFile(file);
       setF((x) => ({ ...x, ...r.fields }));
       setImported(r.recognised);
       toast(`Brief imported — ${r.recognised.length} field${r.recognised.length === 1 ? "" : "s"} filled. Check and add anything missing.`, "ok");
@@ -116,7 +104,7 @@ export default function NewScript() {
         product_image_urls: Array.from(new Set([...f.product_image_urls, ...images])).filter((u) => u.startsWith("https://")).slice(0, 4),
         references: f.references.map((r) => ({ ...r, kind: /^https?:\/\//.test(r.value.trim()) ? "url" : "note" })) };
       const job = await api.post<JobSummary>("/api/jobs", body);
-      localStorage.removeItem(DRAFT_KEY);
+      clearDraft();
       nav(`/scripts/${job.id}`);
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
   };

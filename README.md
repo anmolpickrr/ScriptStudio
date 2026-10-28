@@ -1,5 +1,7 @@
 # ScriptStudio
 
+**Open the app:** https://anmolpickrr.github.io/ScriptStudio/ (the API runs on Render at https://scriptstudio.onrender.com)
+
 ScriptStudio turns a **product link and a client brief** into a **production-ready video script**. Every script follows the same house format, and you can open it in Google Docs or Word.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/anmolpickrr/ScriptStudio)
@@ -59,7 +61,7 @@ Or run the production image with `docker compose up --build`, which serves http:
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
-The **Deploy to Render** button above sets everything up on free plans: Render (server), Neon (database) and Google Gemini (AI). No card is needed, and it costs $0. You paste two free keys, and you get a public `https://…onrender.com` link. Every push to `main` then redeploys.
+The **Deploy to Render** button above sets everything up on free plans: Render (server), Neon (database) and Google Gemini (AI). No card is needed, and it costs $0. You paste two free keys, and you get a public `https://…onrender.com` link. Every push to `main` then redeploys. The website itself is also published to GitHub Pages by `pages.yml`; it calls the Render API, which allows that address through `CORS_ORIGINS`.
 
 ## Tests
 
@@ -87,5 +89,5 @@ backend/app/
   store.py, memory.py  local disk / Firestore persistence, usage caps, approved-script style memory
 frontend/src/          pages (New script, Script view, My scripts, Library, Format), UI kit, API client
 infra/                 entrypoint, Render blueprint (../render.yaml), Google Cloud setup + deploy scripts
-.github/workflows/     ci.yml, deploy.yml (Cloud Run), smoke.yml (live URL check)
+.github/workflows/     ci.yml, pages.yml (website on GitHub Pages), deploy.yml (Cloud Run), smoke.yml (live URL check)
 ```

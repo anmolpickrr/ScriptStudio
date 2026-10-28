@@ -240,3 +240,23 @@ def test_unreachable_database_gives_clear_errors(monkeypatch):
     r = c.get("/api/options")
     assert r.status_code == 503 and "DATABASE_URL" in r.json()["detail"]
     monkeypatch.setattr(store_mod, "_store", None)
+
+
+def test_github_pages_site_uses_header_session_across_origins(client, monkeypatch):
+    monkeypatch.setattr(settings, "auth_mode", "anonymous")
+    pages = {"Origin": "https://anmolpickrr.github.io"}
+    pre = client.options("/api/jobs", headers={**pages, "Access-Control-Request-Method": "POST",
+                                               "Access-Control-Request-Headers": "content-type,x-requested-with,x-session-token"})
+    assert pre.status_code == 200 and pre.headers["access-control-allow-origin"] == pages["Origin"]
+    assert client.options("/api/jobs", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"}
+                          ).headers.get("access-control-allow-origin") is None
+
+    browser = TestClient(app)  # no cookies are sent cross-origin: the token travels in a header instead
+    r = browser.get("/api/config", headers=pages)
+    token = r.headers["x-session-token"]
+    assert "x-session-token" in r.headers["access-control-expose-headers"].lower()
+    browser.cookies.clear()
+    me = {**pages, **H, "X-Session-Token": token}
+    jid = browser.post("/api/jobs", json=BODY, headers=me).json()["id"]
+    assert browser.get(f"/api/jobs/{jid}", headers=me).status_code == 200
+    assert TestClient(app).get(f"/api/jobs/{jid}", headers=pages).status_code == 404  # another visitor can't see it

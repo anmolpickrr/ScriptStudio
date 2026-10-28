@@ -70,6 +70,9 @@ def clean_database_url(raw: str) -> str:
 @dataclass
 class Settings:
     env: str = field(default_factory=lambda: _env("APP_ENV", "development"))  # development | production
+    # other sites allowed to call the API from the browser (the GitHub Pages copy of the frontend)
+    cors_origins: list = field(default_factory=lambda: [o.strip().rstrip("/") for o in
+                               _env("CORS_ORIGINS", "https://anmolpickrr.github.io").split(",") if o.strip()])
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL"))  # https://scriptwright-xyz.a.run.app
 
     # ---- AI

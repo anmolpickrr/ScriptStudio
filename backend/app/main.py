@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .config import settings
@@ -81,6 +82,13 @@ async def unhandled(request: Request, exc: Exception):
     log.exception("unhandled error on %s", request.url.path)
     return JSONResponse({"detail": "Something went wrong on our side. Please try again."}, status_code=500)
 
+
+# Added last so it wraps everything: the GitHub Pages frontend sends its session in a header, never cookies.
+if settings.cors_origins:
+    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
+                       allow_methods=["GET", "POST", "PUT", "DELETE"],
+                       allow_headers=["Content-Type", "X-Requested-With", "X-Session-Token"],
+                       expose_headers=["X-Session-Token", "Content-Disposition"], max_age=86400)
 
 app.include_router(system.router)
 app.include_router(jobs.router)

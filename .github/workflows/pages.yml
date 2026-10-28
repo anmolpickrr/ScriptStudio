@@ -1,0 +1,45 @@
+name: Website (GitHub Pages)
+
+# Publishes the frontend at https://<owner>.github.io/<repo>/ . It talks to the API on Render
+# (repository variable API_BASE_URL, default below); the API allows this origin via CORS_ORIGINS.
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE_URL || 'https://scriptstudio.onrender.com' }}
+        run: |
+          npm ci
+          npx tsc -b
+          npx vite build --base=/${{ github.event.repository.name }}/
+          cp dist/index.html dist/404.html   # deep links (e.g. /scripts/123) load the app too
+      - uses: actions/upload-pages-artifact@v4
+        with: { path: frontend/dist }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.deployment.outputs.page_url }}" }
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from .config import settings
 
 COOKIE = "sw_session"
+TOKEN_HEADER = "X-Session-Token"  # same session, for the GitHub Pages site (a different origin, so no cookies)
 
 
 class User(BaseModel):
@@ -71,8 +72,10 @@ def read_session(token: str) -> Optional[User]:
 
 
 def set_session(response: Response, user: User) -> None:
-    response.set_cookie(COOKIE, make_session(user), max_age=settings.session_days * 86400, httponly=True,
+    token = make_session(user)
+    response.set_cookie(COOKIE, token, max_age=settings.session_days * 86400, httponly=True,
                         secure=settings.production, samesite="lax", path="/")
+    response.headers[TOKEN_HEADER] = token
 
 
 def new_guest() -> User:
@@ -123,7 +126,7 @@ def verify_google_id_token(credential: str) -> User:
 def session_user(request: Request) -> Optional[User]:
     if settings.auth_mode == "none":
         return LOCAL_USER
-    return read_session(request.cookies.get(COOKIE, ""))
+    return read_session(request.headers.get(TOKEN_HEADER) or request.cookies.get(COOKIE, ""))
 
 
 def current_user(request: Request, response: Response) -> User:

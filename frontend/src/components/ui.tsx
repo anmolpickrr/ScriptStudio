@@ -116,7 +116,7 @@ export function Skeleton({ h = 16, w = "100%", style }: { h?: number; w?: number
 
 export function BrandMark({ small }: { small?: boolean }) {
   return (
-    <Link className="brand" to="/new" aria-label="ScriptStudio by Fastrr">
+    <Link className="brand" to="/" aria-label="ScriptStudio by Fastrr">
       <span className="mark" aria-hidden="true"><i /><i /></span>
       <span className="word">ScriptStudio{!small && <small>by Fastrr</small>}</span>
     </Link>
@@ -170,6 +170,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
 // ---------------------------------------------------------------- icons (inline, no dependency)
 const P = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 export const Icon = {
+  home: () => <svg viewBox="0 0 24 24" {...P}><path d="m3 11 9-7 9 7" /><path d="M5 10v10h5v-6h4v6h5V10" /></svg>,
   plus: () => <svg viewBox="0 0 24 24" {...P}><path d="M12 5v14M5 12h14" /></svg>,
   doc: () => <svg viewBox="0 0 24 24" {...P}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></svg>,
   star: () => <svg viewBox="0 0 24 24" {...P}><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></svg>,
