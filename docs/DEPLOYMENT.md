@@ -116,7 +116,8 @@ Keep the hook private: anyone with it can trigger a deploy (if it leaks, click *
 ScriptStudio exposes two small integrations; both use only a per-job code (shown on the script page) as the key.
 
 - **Claude** — a custom connector (remote MCP server) at `https://<api>/mcp` with two tools, `get_script_job` and
-  `submit_script`. claude.ai → Settings → Connectors → Add custom connector → name `ScriptStudio`, paste the URL.
+  `submit_script`. claude.ai → Settings → Connectors → Add → Add custom connector → name `ScriptStudio`, paste the URL,
+  Authentication: **No sign-in**.
 - **ChatGPT** — a custom GPT with an Action imported from `https://<api>/connect/openapi.json` (authentication: None).
   Paste the instructions shown in ScriptStudio (account menu → Connect Claude / ChatGPT), then save the GPT's link there.
 

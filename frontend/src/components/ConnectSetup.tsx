@@ -49,9 +49,9 @@ export default function ConnectSetup({ initial = "claude", onClose, onSaved }: {
       {tab === "claude" ? (
         <ol className="setup-steps">
           <li>Open <a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer">claude.ai → Settings → Connectors <Icon.ext /></a></li>
-          <li>Click <b>Add custom connector</b>. Name it <b>ScriptStudio</b> and paste this URL:
+          <li>Click <b>Add</b> → <b>Add custom connector</b>. Name it <b>ScriptStudio</b> and paste this URL:
             <Copy text={claudeConnectorUrl()} /></li>
-          <li>Click <b>Add</b>. Leave the advanced (OAuth) settings empty.</li>
+          <li>Under <b>Authentication</b> choose <b>No sign-in</b>, leave Request headers empty, and click <b>Add</b>.</li>
           <li>In a chat, make sure ScriptStudio is switched on in the tools menu. The first time, Claude asks to allow ScriptStudio's tools — choose <b>Always allow</b>.</li>
         </ol>
       ) : (
