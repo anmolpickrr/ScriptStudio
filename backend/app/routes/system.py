@@ -24,7 +24,9 @@ def deep_health():
     """Checks the database and AI configuration (not the AI itself). Errors are redacted. Not used by the
     platform health check, so a serverless database can still scale to zero between visits."""
     from ..store import StoreUnavailable, redact
-    out = {"store": settings.store_backend, "llm_provider": settings.llm_provider,
+    import os
+    out = {"version": os.environ.get("RENDER_GIT_COMMIT", "")[:7],  # set by Render on every deploy
+           "store": settings.store_backend, "llm_provider": settings.llm_provider,
            "models": [settings.model_creative, settings.model_critic, settings.model_extract],
            "config_issues": [i for i in settings.validate() if "SESSION_SECRET" not in i]}
     try:
