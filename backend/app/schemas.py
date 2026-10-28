@@ -57,6 +57,8 @@ class JobInputs(BaseModel):
     cta: Short = ""
     design_style: Short = ""
     elements_to_highlight: list[Short] = Field([], max_length=15)
+    subtitles: bool = True
+    image_source: Short = "Web"  # where product visuals come from: Web, Client assets, AI generated, Fresh shoot
     format_id: str = Field("house-v1", max_length=60)
     concept_count: int = Field(3, ge=1, le=5)
     # auto = ScriptStudio's built-in AI pipeline; chatgpt / claude = the user runs one prompt in their own
@@ -192,6 +194,7 @@ class DialogueLine(BaseModel):
 
 class Scene(BaseModel):
     number: int
+    label: str = ""           # the scene's role in a few words: "Hook", "The surprise", "Gift and CTA"
     start_sec: float
     end_sec: float
     location: str
@@ -223,6 +226,10 @@ class ProductDetail(BaseModel):
 class Script(BaseModel):
     title: str
     logline: str
+    talent_summary: str = ""              # who is on screen, one line ("Indian couple, wife 30–38 …")
+    product_line: str = ""                # product name (key verified features)
+    idea: str = ""                        # quoted tagline + the story in a sentence or two
+    small_print: str = ""                 # legal / compliance small line, "" when not needed
     headline_options: list[str] = []      # 2–3 headline / hook-line options for supers and post copy
     supporting_copy: str = ""             # sub-headline / caption copy
     visual_style: str = ""                # design style in one line (look, light, camera feel)

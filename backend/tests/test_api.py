@@ -62,7 +62,7 @@ def test_full_lifecycle(client):
     assert "source_excerpt" not in job["dossier"]
 
     html = client.get(f"/api/jobs/{jid}/preview").text
-    assert "Scene-by-Scene Script" in html
+    assert "Continuity (same in every scene)" in html and "Scene 1" in html
     assert client.get(f"/api/jobs/{jid}/download").headers["content-disposition"].startswith("attachment")
 
     assert client.post(f"/api/jobs/{jid}/revise", json={"feedback": "Make the hook punchier."}, headers=H).status_code == 200
@@ -180,7 +180,8 @@ def test_global_daily_cap(client, monkeypatch):
 def test_docx_export_follows_house_format(client):
     import io
     from docx import Document
-    jid = client.post("/api/jobs", json={**BODY, "offer": "Flat 10% off", "design_style": "Creator-shot UGC"}, headers=H).json()["id"]
+    jid = client.post("/api/jobs", json={**BODY, "offer": "Flat 10% off", "design_style": "Creator-shot UGC",
+                                         "format_id": "brief-v1"}, headers=H).json()["id"]
     r = client.get(f"/api/jobs/{jid}/docx")
     assert r.status_code == 200 and r.headers["content-disposition"].endswith('.docx"')
     d = Document(io.BytesIO(r.content))
@@ -192,6 +193,19 @@ def test_docx_export_follows_house_format(client):
     assert bullets and bullets[0].runs[0].bold and bullets[0].runs[0].text == "Product Link: "
     assert d.sections[0].page_width < d.sections[0].page_height  # portrait, like the template
     assert any(t.startswith("Scene 4") for t in text) and any("Shop now on brewly.in" in t for t in text)
+
+
+def test_docx_default_is_the_script_sheet(client):
+    import io
+    from docx import Document
+    jid = client.post("/api/jobs", json={**BODY, "language": "Hinglish", "subtitles": False, "cta": "Shop Now"},
+                      headers=H).json()["id"]
+    d = Document(io.BytesIO(client.get(f"/api/jobs/{jid}/docx").content))
+    text = [p.text for p in d.paragraphs]
+    assert text[0] == "SCRIPT" and "Language: Hinglish" in text and "Subtitle: No" in text and "CTA: Shop Now" in text
+    assert "Continuity (same in every scene)" in text and any(t.startswith("Disclaimer: Visuals described") for t in text)
+    assert any(t.startswith("Scene 1") for t in text) and any(t.startswith("Visual: ") for t in text)
+    assert d.paragraphs[1].runs[0].bold  # "Model:" label is bold
 
 
 def test_preview_is_responsive(client):

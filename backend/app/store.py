@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from .config import settings
 
 log = logging.getLogger(__name__)
-from .house_format import DEFAULT_FORMAT, FormatSpec
+from .house_format import BUILTIN_FORMATS, DEFAULT_FORMAT, FormatSpec  # noqa: F401
 from .schemas import Job, Script, utcnow
 
 
@@ -81,8 +81,8 @@ class LocalStore:
         p = self.root / "formats" / f"{format_id}.json"
         if p.exists():
             return FormatSpec.model_validate_json(p.read_text())
-        if format_id == DEFAULT_FORMAT.id:
-            return DEFAULT_FORMAT.model_copy(deep=True)
+        if format_id in BUILTIN_FORMATS:
+            return BUILTIN_FORMATS[format_id].model_copy(deep=True)
         raise KeyError(f"Unknown format '{format_id}'")
 
     def save_format(self, spec):
@@ -97,7 +97,7 @@ class LocalStore:
         return spec
 
     def list_formats(self):
-        specs = {DEFAULT_FORMAT.id: DEFAULT_FORMAT}
+        specs = dict(BUILTIN_FORMATS)
         for p in (self.root / "formats").glob("*.json"):
             if "@v" not in p.stem:
                 s = FormatSpec.model_validate_json(p.read_text())
@@ -172,8 +172,8 @@ class FirestoreStore:
         d = self.db.collection("formats").document(format_id).get()
         if d.exists:
             return FormatSpec.model_validate(d.to_dict())
-        if format_id == DEFAULT_FORMAT.id:
-            return DEFAULT_FORMAT.model_copy(deep=True)
+        if format_id in BUILTIN_FORMATS:
+            return BUILTIN_FORMATS[format_id].model_copy(deep=True)
         raise KeyError(f"Unknown format '{format_id}'")
 
     def save_format(self, spec):
@@ -187,7 +187,7 @@ class FirestoreStore:
         return spec
 
     def list_formats(self):
-        specs = {DEFAULT_FORMAT.id: DEFAULT_FORMAT}
+        specs = dict(BUILTIN_FORMATS)
         for d in self.db.collection("formats").stream():
             s = FormatSpec.model_validate(d.to_dict())
             specs[s.id] = s
@@ -307,8 +307,8 @@ class PostgresStore:
         d = self._get("formats", format_id)
         if d:
             return FormatSpec.model_validate(d)
-        if format_id == DEFAULT_FORMAT.id:
-            return DEFAULT_FORMAT.model_copy(deep=True)
+        if format_id in BUILTIN_FORMATS:
+            return BUILTIN_FORMATS[format_id].model_copy(deep=True)
         raise KeyError(f"Unknown format '{format_id}'")
 
     def save_format(self, spec):
@@ -322,7 +322,7 @@ class PostgresStore:
         return spec
 
     def list_formats(self):
-        specs = {DEFAULT_FORMAT.id: DEFAULT_FORMAT}
+        specs = dict(BUILTIN_FORMATS)
         for d in self._list("formats"):
             s = FormatSpec.model_validate(d)
             specs[s.id] = s

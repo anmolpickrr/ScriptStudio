@@ -2,7 +2,7 @@ import json
 
 import httpx
 
-from app.house_format import DEFAULT_FORMAT
+from app.house_format import BRIEF_FORMAT, DEFAULT_FORMAT
 from app.ingest.product import parse_html
 from app.llm import FakeLLM
 from app.pipeline import Pipeline
@@ -53,7 +53,7 @@ def test_stuck_script_goes_to_needs_review_and_keeps_best(tmp_path):
 
 def test_render_follows_format_order_and_shows_flags(tmp_path):
     job, _, _ = run(tmp_path)
-    html = render_script_html(job, DEFAULT_FORMAT)
+    html = render_script_html(job, BRIEF_FORMAT)
     # part 1 mirrors the creative-brief template, part 2 is the script; headings are numbered within each part
     for heading in ("1. Basic Information", "6. Visual Direction", "1. Concept", "5. Scene-by-Scene Script"):
         assert f">{heading.replace('&', '&amp;')}</h3>" in html, heading
@@ -61,6 +61,18 @@ def test_render_follows_format_order_and_shows_flags(tmp_path):
                                     "Video Script", "Scene 1", "Scene 4", "Open Questions for the Client")]
     assert all(p > 0 for p in order) and order == sorted(order)
     assert "withheld" in html and "Dialogue — Riya" in html and "0:06–0:12" in html
+
+
+def test_default_format_is_the_script_sheet(tmp_path):
+    job, _, _ = run(tmp_path)
+    job.inputs.language, job.inputs.subtitles = "Hinglish", True
+    html = render_script_html(job, DEFAULT_FORMAT)
+    order = [html.find(t) for t in (">SCRIPT<", "<b>Model:</b>", "<b>Language:</b> Hinglish", "<b>Image Source:</b> Web",
+                                    "<b>Subtitle:</b> Yes", "<b>Product:</b>", "<b>CTA:</b>", "<b>Idea:</b>",
+                                    "Continuity (same in every scene)", "<b>Disclaimer:</b>", "Scene 1 (", "<b>Visual:</b>")]
+    assert all(p > 0 for p in order) and order == sorted(order), order
+    assert "<b>VO (Riya):</b> “" in html and "Creative Brief" not in html
+    assert "<b>Product:</b> " in html and "Use the real product images as the reference" in html  # never invent it
 
 
 def test_approval_feeds_style_memory(tmp_path):

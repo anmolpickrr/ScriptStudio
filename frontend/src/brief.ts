@@ -9,7 +9,7 @@ export const EMPTY: JobInputs = {
   duration_sec: 30, creative_direction: "", references: [], hook_type: null, theme: "", target_audience: "",
   tone: "", language: "English", mandatories: [], exclusions: [], brand_name: "", format_id: "house-v1", concept_count: 3,
   engine: "auto", logo_url: "", brand_guidelines_url: "", asset_links: [], ad_type: "Video", headline_ideas: [],
-  key_usps: [], offer: "", cta: "", design_style: "", elements_to_highlight: [],
+  key_usps: [], offer: "", cta: "", design_style: "", elements_to_highlight: [], subtitles: true, image_source: "Web",
 };
 
 export function loadDraft(): JobInputs {

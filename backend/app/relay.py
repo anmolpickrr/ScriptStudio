@@ -112,6 +112,19 @@ FORMAT RULES
 - The CTA is delivered in the final scene and matches the brief and platform.
 - `headline_options`: 2–3 short headline options (≤8 words). `supporting_copy`: 1–2 sentences of caption copy.
   `visual_style`: the look in one line. `elements_to_highlight`: 3–5 moments/benefits the edit must feature.
+- `label` (per scene): the scene's role in 1–4 words, e.g. "Hook", "The surprise", "Reveal and benefits",
+  "Gift and CTA". The last scene's label ends with "CTA".
+- `talent_summary`: who is on screen in one line, e.g. "Indian couple, wife 30–38 and husband 33–40, fully
+  clothed". Use "Product only (no talent)" when nobody appears.
+- `product_line`: the product name followed by its key verified features in brackets, e.g.
+  "Stride Comfort Cushion (memory foam, 27° angle, zip-off linen cover)". Verified facts only.
+- `idea`: the core idea — a short quoted tagline in the script's language, then one or two sentences on the story.
+- `continuity`: items written as "Label: detail" — one per character (by name or role: look, age, wardrobe, mood),
+  then props/wrapping, "Product: <the real product exactly as on the product page; use the real product images as
+  reference; never invent or alter it>", and "Setting: <location, time of day, light>".
+- Characters' names are their on-screen role ("Wife", "Husband", "Creator") so lines read as VO (Wife).
+- `small_print`: a legal / compliance small line when the category needs one (e.g. "Comfort product. Not a medical
+  treatment."), otherwise "".
 - House editorial rules: {"; ".join(spec.editorial_notes) or "none"}
 {prompts.CRAFT}
 CLIENT BRIEF (source of truth for objective, message, tone and outcome):

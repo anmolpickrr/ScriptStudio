@@ -327,28 +327,46 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const toast = useToast();
   const relay = job.relay!;
   const name = ENGINE_NAME[job.inputs.engine];
-  const [copied, setCopied] = useState(false);
-  const [opened, setOpened] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [back, setBack] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState(relay.last_error);
   const [busy, setBusy] = useState(false);
 
-  const copy = async () => {
+  // when the user comes back from the chat tab, point them at step 2
+  useEffect(() => {
+    if (!sent) return;
+    const onFocus = () => setBack(true);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [sent]);
+
+  const copyAndOpen = async () => {
     try { await navigator.clipboard.writeText(relay.prompt); }
-    catch {  // older browsers / no permission: select the text so ⌘C works
+    catch {  // no clipboard permission: select the text so Ctrl/⌘+C works
       setShowPrompt(true);
       setTimeout(() => { const el = document.getElementById("relay-prompt"); if (el) { const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); } }, 50);
-      toast("Press Ctrl/⌘ + C to copy the selected prompt.");
+      toast("Press Ctrl/⌘ + C to copy the selected prompt, then open " + name + ".");
       return;
     }
-    setCopied(true); toast("Prompt copied.", "ok");
+    setSent(true);
+    window.open(ENGINE_URL[job.inputs.engine], "_blank", "noopener");
+    toast(`Prompt copied. In ${name}, paste it (Ctrl/⌘ + V) and send.`, "ok");
   };
-  const submit = async () => {
+  const submit = async (text: string) => {
+    if (text.trim().length < 2) return;
     setBusy(true); setError("");
-    try { await api.post(`/api/jobs/${job.id}/relay`, { answer }); toast("Script checked and formatted.", "ok"); await onDone(); }
+    try { await api.post(`/api/jobs/${job.id}/relay`, { answer: text }); toast("Script checked and formatted.", "ok"); await onDone(); }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
+  };
+  const pasteReply = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.includes("{")) { setError(`The clipboard doesn't hold ${name}'s reply yet. Click the copy icon under ${name}'s answer, then try again.`); return; }
+      setAnswer(text); await submit(text);
+    } catch { setError("Your browser blocked reading the clipboard. Paste the reply into the box below instead."); }
   };
 
   return (
@@ -356,41 +374,38 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
       <div className="card-head">
         <h2 className="grow">{relay.kind === "full" ? `Write it with ${name}` : `Revise with ${name}`} <span className="muted small">· round {relay.round}</span></h2>
       </div>
-      <p className="muted" style={{ margin: "4px 0 16px" }}>Three quick steps. Your {name} plan does the writing; ScriptStudio fact-checks the reply against the product page, runs the quality checks and formats it.</p>
+      <p className="muted" style={{ margin: "4px 0 16px" }}>Two steps. Your {name} plan does the writing; ScriptStudio fact-checks the reply against the product page, runs the quality checks and formats it.</p>
       <div className="relay-steps">
-        <div className={`relay-step ${copied ? "done" : ""}`}>
-          <span className="n">{copied ? "✓" : 1}</span>
+        <div className={`relay-step ${sent ? "done" : ""}`}>
+          <span className="n">{sent ? "✓" : 1}</span>
           <div>
-            <h3>Copy the prompt</h3>
-            <div className="muted small">It contains the product facts, brief, platform rules and the house format — about {Math.round(relay.prompt.length / 1000)}k characters.</div>
+            <h3>Send the prompt to {name}</h3>
+            <div className="muted small">We copy the prompt and open {name}. There, press <b>Ctrl/⌘ + V</b> and send. For best results pick the strongest model in your plan{job.inputs.engine === "chatgpt" ? " (e.g. a “Thinking” model)" : " (e.g. Opus)"}.</div>
             <div className="row" style={{ marginTop: 12 }}>
-              <button className="btn primary" onClick={copy}><Icon.copy /> {copied ? "Copied" : "Copy prompt"}</button>
+              <button className="btn primary" onClick={copyAndOpen}><Icon.copy /> {sent ? "Copy & open again" : `Copy prompt & open ${name}`} <Icon.ext /></button>
               <button className="btn ghost sm" onClick={() => setShowPrompt((v) => !v)}>{showPrompt ? "Hide" : "View"} prompt</button>
             </div>
             {showPrompt && <div id="relay-prompt" className="prompt-box">{relay.prompt}</div>}
           </div>
         </div>
-        <div className={`relay-step ${opened ? "done" : ""}`}>
-          <span className="n">{opened ? "✓" : 2}</span>
+        <div className={`relay-step ${back ? "focus" : ""}`}>
+          <span className="n">2</span>
           <div>
-            <h3>Paste it into {name}</h3>
-            <div className="muted small">Start a new chat and paste the prompt as your message. For best results pick the strongest model in your plan{job.inputs.engine === "chatgpt" ? " (e.g. a “Thinking” model)" : " (e.g. Opus or Sonnet)"}.</div>
+            <h3>Bring the reply back</h3>
+            <div className="muted small">When {name} finishes, click the <b>copy</b> icon under its answer, then click the button below. If the answer stops halfway, ask {name} to “continue” first.</div>
             <div className="row" style={{ marginTop: 12 }}>
-              <a className="btn white" href={ENGINE_URL[job.inputs.engine]} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)}>Open {name} <Icon.ext /></a>
+              <button className="btn primary" disabled={busy} onClick={pasteReply}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Checking the script…" : "Paste reply & build script"}</button>
             </div>
-          </div>
-        </div>
-        <div className="relay-step">
-          <span className="n">3</span>
-          <div>
-            <h3>Paste {name}'s reply here</h3>
-            <div className="muted small">Copy the whole answer (the JSON block). If it stops halfway, ask {name} to “continue” and paste everything.</div>
-            <textarea className="mono" style={{ marginTop: 12, minHeight: 150 }} value={answer} onChange={(e) => setAnswer(e.target.value)}
-                      placeholder={'```json\n{ "product_name": … }\n```'} aria-label={`${name} reply`} />
             {error && <div className="banner bad" style={{ marginTop: 12, marginBottom: 0 }} role="alert"><span>⚠️</span><span>{error}</span></div>}
-            <div className="row" style={{ marginTop: 12 }}>
-              <button className="btn primary" disabled={busy || answer.trim().length < 2} onClick={submit}>{busy && <Spinner />} Check & format script</button>
-            </div>
+            <details className="manual" open={!!answer && !busy}>
+              <summary>Or paste it yourself</summary>
+              <textarea className="mono" style={{ marginTop: 10, minHeight: 130 }} value={answer} aria-label={`${name} reply`}
+                        placeholder={'```json\n{ "product_name": … }\n```'} onChange={(e) => setAnswer(e.target.value)}
+                        onPaste={(e) => { const t = e.clipboardData.getData("text"); if (t.includes("{") && t.length > 300) { e.preventDefault(); setAnswer(t); submit(t); } }} />
+              <div className="row" style={{ marginTop: 10 }}>
+                <button className="btn sm" disabled={busy || answer.trim().length < 2} onClick={() => submit(answer)}>Check & format</button>
+              </div>
+            </details>
           </div>
         </div>
       </div>

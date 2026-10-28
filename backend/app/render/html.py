@@ -95,10 +95,29 @@ def _blocks(blocks: list, st: _Styles) -> str:
     return "".join(out)
 
 
+def _sheet_html(job: Job, spec: FormatSpec, st: _Styles) -> list[str]:
+    sh = doc.build_sheet(job, spec)
+    f = f"font-family:{spec.style.font_family},Helvetica,sans-serif;font-size:{spec.style.body_pt}pt;line-height:1.35;"
+    p = f"{f}margin:0 0 3pt 0;"
+    line = lambda k, v: f"<p style='{p}'><b>{_e(k)}:</b> {_e(v)}</p>"  # noqa: E731
+    out = [f"<h1 style='{st.title}margin-top:0;'>{_e(sh.title)}</h1>"]
+    out += [line(k, v) for k, v in sh.header]
+    out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>Continuity (same in every scene)</p>")
+    lis = "".join(f"<li style='{st.li}'>" + (f"<b>{_e(k)}:</b> " if k else "") + f"{_e(v)}</li>" for k, v in sh.continuity)
+    out.append(f"<ul style='{st.ul}'>{lis}</ul>")
+    out.append(f"<p style='{f}margin:16pt 0 16pt 0;'><b>Disclaimer:</b> {_e(sh.disclaimer)}</p>")
+    for sc in sh.scenes:
+        out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>{_e(sc.heading)}</p>")
+        out.append(f"<div style='margin-left:14pt;'>" + "".join(line(k, v) for k, v in sc.lines) + "</div>")
+    if sh.small_line:
+        out.append(f"<p style='{f}margin:12pt 0 0 0;'><b>Small line:</b> {_e(doc._quoted(sh.small_line))}</p>")
+    return out
+
+
 def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True, responsive: bool = False) -> str:
     st = _Styles(spec)
-    parts = []
-    for n, part in enumerate(doc.build(job, spec, include_qc)):
+    parts = _sheet_html(job, spec, st) if spec.style.layout == "sheet" else []
+    for n, part in enumerate(doc.build(job, spec, include_qc) if spec.style.layout != "sheet" else []):
         if n:
             parts.append(f"<hr style='{st.rule}border-top:2px solid {spec.style.accent_hex};margin-top:28pt;'>")
         parts.append(f"<h1 style='{st.title}'>{_e(part.title)}</h1>")

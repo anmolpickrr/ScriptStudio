@@ -22,7 +22,9 @@ LABELS: list[tuple[str, tuple[str, ...]]] = [
     ("brand_name", ("brand",)),
     ("target_audience", ("primary audience", "audience", "target")),
     ("language", ("creative language", "language")),
-    ("creative_direction", ("creator direction",)),
+    ("creative_direction", ("creator direction", "model", "talent")),
+    ("subtitles", ("subtitle",)),
+    ("image_source", ("image source",)),
     ("platform", ("platform",)),
     ("ad_type", ("ad type",)),
     ("headline_ideas", ("headline",)),
@@ -125,6 +127,10 @@ def parse_brief_docx(data: bytes) -> dict:
         out["brand_name"] = fields["brand_name"][:300]
     if "asset_links" in fields:
         out["asset_links"] = [u for u in fields["asset_links"] if u.startswith("http")][:10]
+    if "subtitles" in fields:
+        out["subtitles"] = not fields["subtitles"].lower().startswith(("no", "off", "false"))
+    if "image_source" in fields:
+        out["image_source"] = fields["image_source"][:60]
     for k in ("target_audience", "creative_direction", "ad_type", "offer", "cta", "design_style", "tone"):
         if k in fields:
             out[k] = fields[k][:300] if k not in ("target_audience", "creative_direction") else fields[k][:1000]

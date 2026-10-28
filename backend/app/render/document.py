@@ -210,3 +210,73 @@ def build(job: Job, spec: FormatSpec, include_qc: bool = False) -> list[Part]:
         if blocks:
             target.sections.append(Section(len(target.sections) + 1, sec.label, blocks))
     return [p for p in (brief_part, script_part) if p.sections]
+
+
+# ---------------------------------------------------------------- the one-page script sheet (default format)
+
+@dataclass
+class SheetScene:
+    heading: str                        # "Scene 1 (Hook)"
+    lines: list[tuple[str, str]]        # ("Visual", "..."), ("VO (Wife)", "“...”"), ("On-screen text", "...")
+
+
+@dataclass
+class Sheet:
+    title: str
+    header: list[tuple[str, str]]       # Model, Language, Image Source, Subtitle, Product, CTA, Idea
+    continuity: list[tuple[str, str]]   # ("Wife", "About 34, ..."); label may be "" for free-form items
+    disclaimer: str
+    scenes: list[SheetScene]
+    small_line: str = ""
+
+
+def _split_label(text: str) -> tuple[str, str]:
+    head, sep, rest = text.partition(":")
+    if sep and 0 < len(head) <= 40 and rest.strip():
+        return head.strip(), rest.strip()
+    return "", text.strip()
+
+
+def _quoted(line: str) -> str:
+    line = line.strip()
+    return line if line[:1] in "\"“'‘" else f"“{line}”"
+
+
+def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
+    s = job.script
+    assert s is not None
+    i, d = job.inputs, job.dossier
+    plat = playbook.platform(i.platform)
+    names = {c.id: c.name for c in s.characters}
+
+    model = s.talent_summary or "; ".join(f"{c.name}: {c.description}" for c in s.characters) \
+        or i.creative_direction or "Product only (no talent)"
+    product = s.product_line or (d.name if d and d.name else "") or (i.brand_name or "")
+    cta = i.cta or s.cta.action or s.cta.line
+    header = [("Model", model), ("Language", i.language), ("Image Source", i.image_source or "Web"),
+              ("Subtitle", "Yes" if i.subtitles else "No"),
+              ("Format", f"{plat['label']} · {i.duration_sec}s · {i.aspect_ratio or plat['aspect']}"),
+              ("Product", product), ("CTA", cta), ("Idea", s.idea or s.concept_summary or s.logline)]
+
+    continuity = [_split_label(c) for c in s.continuity if c.strip()]
+    labels = {lbl.lower() for lbl, _ in continuity}
+    for c in s.characters:  # every character gets a continuity line, even if the writer missed one
+        if c.name.lower() not in labels and not any(c.name.lower() in t.lower() for _, t in continuity):
+            continuity.insert(0, (c.name, ". ".join(x.strip().rstrip(".") for x in (c.description, c.continuity) if x.strip()) + "."))
+    if "product" not in labels:
+        continuity.append(("Product", f"{product or 'The product'} exactly as on the product page. Use the real product "
+                                      "images as the reference. Do not invent or alter the product."))
+
+    scenes = []
+    for sc in s.scenes:
+        lines: list[tuple[str, str]] = [("Visual", sc.visual)]
+        if sc.vo:
+            lines.append(("VO", _quoted(sc.vo)))
+        for dl in sc.dialogue:
+            lines.append((f"VO ({names.get(dl.character_id, dl.character_id)})", _quoted(dl.line)))
+        if sc.on_screen_text:
+            lines.append(("On-screen text", sc.on_screen_text))
+        label = sc.label.strip() or ("Hook" if sc.number == 1 else "CTA" if sc is s.scenes[-1] else "")
+        scenes.append(SheetScene(f"Scene {sc.number}" + (f" ({label})" if label else ""), lines))
+
+    return Sheet("SCRIPT", [(k, v) for k, v in header if v], continuity, spec.disclaimer, scenes, s.small_print.strip())

@@ -274,6 +274,9 @@ class Pipeline:
 def brief_field_lines(i) -> list[str]:
     """The structured creative-brief fields, as prompt lines (only the ones filled in)."""
     out = [f"AD TYPE: {i.ad_type}"] if i.ad_type else []
+    out.append(f"SUBTITLES: {'yes — burn-in subtitles of the VO' if i.subtitles else 'no'}")
+    if i.image_source:
+        out.append(f"PRODUCT VISUALS SOURCE: {i.image_source}")
     for label, val in (("OFFER (from the client)", i.offer), ("CTA (from the client)", i.cta),
                        ("DESIGN STYLE", i.design_style)):
         if val:

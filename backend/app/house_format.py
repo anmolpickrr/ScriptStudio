@@ -29,6 +29,7 @@ class FormatStyle(BaseModel):
     flag_bg: str = "#FFF4E5"
     landscape: bool = False
     scene_layout: str = "blocks"  # blocks = one labelled block per scene (portrait-friendly) | table
+    layout: str = "sheet"         # sheet = the one-page production script | brief = Creative Brief + Video Script
 
 
 class FormatRules(BaseModel):
@@ -49,14 +50,36 @@ class FormatSpec(BaseModel):
     style: FormatStyle = FormatStyle()
     rules: FormatRules = FormatRules()
     editorial_notes: list[str] = []  # house preferences learned from approvals
+    disclaimer: str = ("Visuals described below are for reference/idea only. Final video may differ, as AI generation has "
+                       "certain content and visual limitations. We will try to showcase the concept in the best possible "
+                       "way within those constraints.")
 
 
 BRIEF_KEYS = ("brief_basic", "brief_audience", "brief_format", "brief_messaging", "brief_direction", "brief_visual")
 
+EDITORIAL = [
+    "Every scene earns its place: one idea per scene.",
+    "Show it, then say what the picture cannot.",
+    "Pack shots use the real pack, label facing camera.",
+]
+
+# The default: the team's one-page production script (SCRIPT header, continuity, disclaimer, scene blocks).
+# Its layout is fixed by the renderer; the sections list only names what the document contains.
 DEFAULT_FORMAT = FormatSpec(
     id="house-v1",
-    version=2,
-    name="House Script Format",
+    version=3,
+    name="Script Sheet",
+    sections=[SectionSpec(key="header", label="Script details"), SectionSpec(key="continuity", label="Continuity"),
+              SectionSpec(key="scenes", label="Scenes")],
+    scene_columns=["#", "Time", "Visual", "VO / Dialogue", "On-screen Text", "SFX / Music"],
+    editorial_notes=EDITORIAL,
+)
+
+BRIEF_FORMAT = FormatSpec(
+    id="brief-v1",
+    version=1,
+    name="Creative Brief + Script",
+    style=FormatStyle(layout="brief"),
     sections=[
         # Part 1 — Creative Brief (same sections and labels as the team's brief template)
         SectionSpec(key="brief_basic", label="Basic Information"),
@@ -77,9 +100,7 @@ DEFAULT_FORMAT = FormatSpec(
         SectionSpec(key="qc", label="Quality Check Summary", required=False),
     ],
     scene_columns=["#", "Time", "Visual", "VO / Dialogue", "On-screen Text", "SFX / Music"],
-    editorial_notes=[
-        "Every scene earns its place: one idea per scene.",
-        "Show it, then say what the picture cannot.",
-        "Pack shots use the real pack, label facing camera.",
-    ],
+    editorial_notes=EDITORIAL,
 )
+
+BUILTIN_FORMATS = {f.id: f for f in (DEFAULT_FORMAT, BRIEF_FORMAT)}

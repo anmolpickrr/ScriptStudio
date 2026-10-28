@@ -13,6 +13,7 @@ const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
 ];
 const AD_TYPES = ["Video", "UGC video", "Product demo", "Testimonial", "Unboxing", "Explainer", "Lifestyle film"];
 const DESIGN_STYLES = ["Creator / UGC", "Lifestyle", "Premium studio", "Minimal product", "Documentary", "Animated / motion"];
+const IMAGE_SOURCES = ["Web", "Client assets", "AI generated", "Fresh shoot"];
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
 
 const optUrl = (u: string) => !u.trim() || validUrl(u);
@@ -50,6 +51,8 @@ export default function NewScript() {
   const [imported, setImported] = useState<string[]>(() => (loc.state as { imported?: string[] } | null)?.imported || []);
   useEffect(() => { if (params.size) setParams({}, { replace: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [showCopy, setShowCopy] = useState(() => !!f.product_copy);
+  const [moreOpen, setMoreOpen] = useState(() => !!(f.brand_name || f.target_audience || f.key_usps.length || f.offer || f.tone ||
+    f.mandatories.length || f.references.length || f.asset_links.length || f.logo_url));
   const set = <K extends keyof JobInputs>(k: K, v: JobInputs[K]) => setF((x) => ({ ...x, [k]: v }));
 
   useEffect(() => saveDraft(f), [f]);
@@ -83,6 +86,7 @@ export default function NewScript() {
       const r = await importBriefFile(file);
       setF((x) => ({ ...x, ...r.fields }));
       setImported(r.recognised);
+      setMoreOpen(true);
       toast(`Brief imported — ${r.recognised.length} field${r.recognised.length === 1 ? "" : "s"} filled. Check and add anything missing.`, "ok");
     } catch (e) { toast((e as Error).message, "error"); }
     finally { setImporting(false); }
@@ -118,7 +122,7 @@ export default function NewScript() {
         <div className="grow">
           <div className="eyebrow"><Icon.spark /> Creative brief → script</div>
           <h1>New script</h1>
-          <p>Fill in the brief, or import your brief document. Only the product link and direction are required.</p>
+          <p>Two things are required: the product link and the client's brief. You get back a ready-to-shoot script.</p>
         </div>
         <div className="row">
           <input ref={fileRef} type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={importBrief} />
@@ -147,12 +151,65 @@ export default function NewScript() {
             <p className="hint">{engine.hint}</p>
           </div>
 
-          <Section n={1} title="Basic Information" done={!errors.product_url}>
+          <section className="form-section essentials">
+            <h2 className="sec-title"><span className={`num ${ready ? "done" : ""}`}>{ready ? "✓" : 1}</span>The essentials</h2>
+            <p className="hint" style={{ marginTop: 2 }}>That's all we need. Everything else is optional.</p>
+            <Field id="product_url" label="Product link" required error={show("product_url")}>
+              <input id="product_url" type="url" inputMode="url" value={f.product_url} className={show("product_url") ? "invalid" : ""}
+                     placeholder="https://brand.com/products/…" onChange={(e) => set("product_url", e.target.value)} onBlur={blur("product_url")} />
+            </Field>
+            <Field id="client_brief" label="Client brief" required error={show("client_brief")}
+                   extra={<button type="button" className="toggle-link" style={{ margin: 0 }} disabled={importing} onClick={() => fileRef.current?.click()}>
+                     {importing ? <Spinner /> : <Icon.upload />} Import .docx</button>}>
+              <textarea id="client_brief" style={{ minHeight: 130 }} value={f.client_brief} maxLength={20000} className={show("client_brief") ? "invalid" : ""}
+                        placeholder="Paste the brief: the occasion or idea, the message, the offer, anything the client asked for. E.g. “Karwa Chauth gifting film — husband surprises wife with a comfort cushion after the fast.”"
+                        onChange={(e) => set("client_brief", e.target.value)} onBlur={blur("client_brief")} />
+            </Field>
+            <Field label="Platform">
+              <div className="options" role="radiogroup" aria-label="Platform">
+                {Object.entries(options!.platforms).map(([k, p]) => (
+                  <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`opt sm ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>{p.label}</button>))}
+              </div>
+            </Field>
             <div className="grid2">
-              <Field id="product_url" label="Product Link" required error={show("product_url")}>
-                <input id="product_url" type="url" inputMode="url" value={f.product_url} className={show("product_url") ? "invalid" : ""}
-                       placeholder="https://brand.com/products/…" onChange={(e) => set("product_url", e.target.value)} onBlur={blur("product_url")} />
+              <Field label="Duration">
+                <div className="options" role="radiogroup" aria-label="Duration">
+                  {plat?.durations.map((d) => (
+                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={`opt sm ${f.duration_sec === d ? "on" : ""}`} onClick={() => set("duration_sec", d)}>{d}s</button>))}
+                </div>
               </Field>
+              <Field label="Subtitles">
+                <div className="options" role="radiogroup" aria-label="Subtitles">
+                  {[true, false].map((v) => (
+                    <button type="button" role="radio" aria-checked={f.subtitles === v} key={String(v)} className={`opt sm ${f.subtitles === v ? "on" : ""}`} onClick={() => set("subtitles", v)}>{v ? "Yes" : "No"}</button>))}
+                </div>
+              </Field>
+            </div>
+            <div className="grid2">
+              <Field id="language" label="Language">
+                <select id="language" value={f.language} onChange={(e) => set("language", e.target.value)}>
+                  {Array.from(new Set([...options!.languages, f.language])).map((l) => <option key={l}>{l}</option>)}
+                </select>
+              </Field>
+              <Field id="image_source" label="Image source">
+                <select id="image_source" value={f.image_source} onChange={(e) => set("image_source", e.target.value)}>
+                  {Array.from(new Set([...IMAGE_SOURCES, f.image_source])).map((x) => <option key={x}>{x}</option>)}
+                </select>
+              </Field>
+              <Field id="creative_direction" label="Model / talent">
+                <input id="creative_direction" type="text" value={f.creative_direction} maxLength={5000} placeholder="e.g. Indian couple, wife 30–38, husband 33–40" onChange={(e) => set("creative_direction", e.target.value)} />
+              </Field>
+              <Field id="cta" label="CTA">
+                <input id="cta" type="text" value={f.cta} maxLength={300} placeholder="e.g. Shop Now" onChange={(e) => set("cta", e.target.value)} />
+              </Field>
+            </div>
+          </section>
+
+          <details className="more" open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
+            <summary><span className="grow"><b>More details</b> <span className="muted">optional · brand, audience, messaging, visuals</span></span><Icon.down /></summary>
+
+          <Section n={2} title="Brand & Product">
+            <div className="grid2">
               <Field id="brand_name" label="Brand">
                 <input id="brand_name" type="text" value={f.brand_name || ""} maxLength={300} placeholder="Detected from the page if empty"
                        onChange={(e) => set("brand_name", e.target.value)} />
@@ -160,12 +217,12 @@ export default function NewScript() {
               <Field id="logo_url" label="Logo Image" error={show("logo_url")}>
                 <input id="logo_url" type="url" value={f.logo_url} placeholder="Link to the logo" onChange={(e) => set("logo_url", e.target.value)} onBlur={blur("logo_url")} />
               </Field>
-              <Field id="brand_guidelines_url" label="Color Palette or Brand Guidelines Link" error={show("brand_guidelines_url")}>
-                <input id="brand_guidelines_url" type="url" value={f.brand_guidelines_url} placeholder="https://…" onChange={(e) => set("brand_guidelines_url", e.target.value)} onBlur={blur("brand_guidelines_url")} />
-              </Field>
             </div>
+            <Field id="brand_guidelines_url" label="Color Palette or Brand Guidelines Link" error={show("brand_guidelines_url")}>
+              <input id="brand_guidelines_url" type="url" value={f.brand_guidelines_url} placeholder="https://…" onChange={(e) => set("brand_guidelines_url", e.target.value)} onBlur={blur("brand_guidelines_url")} />
+            </Field>
             <Field id="asset_links" label="Raw/Clicked Product Link (Images/Videos)" error={show("asset_links")}
-                   hint="Image links also help describe the real pack accurately.">
+                   hint="Image links also help describe the real product accurately.">
               <TagInput id="asset_links" value={f.asset_links} onChange={(v) => set("asset_links", v)} max={10} placeholder="Paste a link and press Enter" />
             </Field>
             {!showCopy ? <button type="button" className="toggle-link" onClick={() => setShowCopy(true)}>+ Product page won't load? Paste the product copy</button> : (
@@ -175,87 +232,32 @@ export default function NewScript() {
             )}
           </Section>
 
-          <Section n={2} title="Targeting & Audience">
-            <div className="grid2">
-              <Field id="target_audience" label="Primary Audience" hint="Age, location, interests">
-                <input id="target_audience" type="text" value={f.target_audience} maxLength={1000} placeholder="e.g. Working women 25–34, metros" onChange={(e) => set("target_audience", e.target.value)} />
-              </Field>
-              <Field id="language" label="Creative Language">
-                <select id="language" value={f.language} onChange={(e) => set("language", e.target.value)}>
-                  {Array.from(new Set([...options!.languages, f.language])).map((l) => <option key={l}>{l}</option>)}
-                </select>
-              </Field>
-            </div>
-            <Field id="creative_direction" label="Creator Direction">
-              <input id="creative_direction" type="text" value={f.creative_direction} maxLength={5000} placeholder="e.g. Female creator, 25, home setting, natural light" onChange={(e) => set("creative_direction", e.target.value)} />
+          <Section n={3} title="Audience & Messaging">
+            <Field id="target_audience" label="Primary Audience" hint="Age, location, interests">
+              <input id="target_audience" type="text" value={f.target_audience} maxLength={1000} placeholder="e.g. Married women 28–45, metros" onChange={(e) => set("target_audience", e.target.value)} />
             </Field>
-          </Section>
-
-          <Section n={3} title="Ad Format & Specifications" done>
-            <Field label="Platform">
-              <div className="options" role="radiogroup" aria-label="Platform">
-                {Object.entries(options!.platforms).map(([k, p]) => (
-                  <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`opt ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>{p.label}</button>))}
-              </div>
-            </Field>
-            <div className="grid2">
-              <Field label="Ad Type">
-                <div className="options">{AD_TYPES.map((t) => (
-                  <button type="button" key={t} className={`opt sm ${f.ad_type === t ? "on" : ""}`} onClick={() => set("ad_type", t)}>{t}</button>))}
-                  {!AD_TYPES.includes(f.ad_type) && f.ad_type && <button type="button" className="opt sm on">{f.ad_type}</button>}
-                </div>
-              </Field>
-              <Field label="Duration">
-                <div className="options" role="radiogroup" aria-label="Duration">
-                  {plat?.durations.map((d) => (
-                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={`opt sm ${f.duration_sec === d ? "on" : ""}`} onClick={() => set("duration_sec", d)}>{d}s</button>))}
-                </div>
-              </Field>
-            </div>
-            {plat && <p className="hint">{plat.aspect} · hook lands within {plat.hook_window_sec}s · {plat.notes}</p>}
-          </Section>
-
-          <Section n={4} title="Messaging & Copy">
             <div className="grid2">
               <Field id="headline_ideas" label="Headline Options">
                 <TagInput id="headline_ideas" value={f.headline_ideas} onChange={(v) => set("headline_ideas", v)} max={10} placeholder="Optional — we'll suggest some" />
               </Field>
-              <Field id="key_usps" label="Key USPs (Unique Selling Points)">
+              <Field id="key_usps" label="Key USPs">
                 <TagInput id="key_usps" value={f.key_usps} onChange={(v) => set("key_usps", v)} placeholder="Type a USP and press Enter" />
               </Field>
               <Field id="offer" label="Offer">
-                <input id="offer" type="text" value={f.offer} maxLength={300} placeholder="e.g. Flat 10% off first order" onChange={(e) => set("offer", e.target.value)} />
+                <input id="offer" type="text" value={f.offer} maxLength={300} placeholder="e.g. ₹2,999 · Free shipping" onChange={(e) => set("offer", e.target.value)} />
               </Field>
-              <Field id="cta" label="Call-To-Action (CTA)">
-                <input id="cta" type="text" value={f.cta} maxLength={300} placeholder="e.g. Shop now on brand.com" onChange={(e) => set("cta", e.target.value)} />
+              <Field label="Ad Type">
+                <select value={f.ad_type} onChange={(e) => set("ad_type", e.target.value)}>
+                  {Array.from(new Set([...AD_TYPES, f.ad_type])).map((t) => <option key={t}>{t}</option>)}
+                </select>
               </Field>
-            </div>
-          </Section>
-
-          <Section n={5} title="Creative Direction" done={!errors.client_brief}>
-            <Field id="client_brief" label="Brief / Highlight Creative Direction" required error={show("client_brief")}
-                   extra={<span className="counter">{f.client_brief.length.toLocaleString()} / 20,000</span>}>
-              <textarea id="client_brief" style={{ minHeight: 130 }} value={f.client_brief} maxLength={20000} className={show("client_brief") ? "invalid" : ""}
-                        placeholder="Objective, the story you want, key message, what success looks like…"
-                        onChange={(e) => set("client_brief", e.target.value)} onBlur={blur("client_brief")} />
-            </Field>
-            <div className="grid2">
               <Field id="tone" label="Tone">
-                <input id="tone" type="text" value={f.tone} maxLength={300} placeholder="e.g. witty, warm, premium" onChange={(e) => set("tone", e.target.value)} />
+                <input id="tone" type="text" value={f.tone} maxLength={300} placeholder="e.g. warm, festive, emotional" onChange={(e) => set("tone", e.target.value)} />
               </Field>
-              <Field id="theme" label="Theme">
-                <input id="theme" type="text" value={f.theme || ""} maxLength={300} placeholder="e.g. Monday mornings" onChange={(e) => set("theme", e.target.value)} />
+              <Field id="theme" label="Theme / Occasion">
+                <input id="theme" type="text" value={f.theme || ""} maxLength={300} placeholder="e.g. Karwa Chauth" onChange={(e) => set("theme", e.target.value)} />
               </Field>
             </div>
-            <Field label="Hook Type">
-              <div className="options">
-                <button type="button" className={`opt sm ${!f.hook_type ? "on" : ""}`} onClick={() => set("hook_type", null)}>Auto</button>
-                {Object.keys(options!.hook_types).map((k) => (
-                  <button type="button" key={k} title={options!.hook_types[k]} className={`opt sm ${f.hook_type === k ? "on" : ""}`} onClick={() => set("hook_type", k)}>
-                    <span style={{ textTransform: k === "pov" ? "none" : "capitalize" }}>{label(k)}</span></button>))}
-              </div>
-              {f.hook_type && <p className="hint">{options!.hook_types[f.hook_type]}</p>}
-            </Field>
             <div className="grid2">
               <Field id="mandatories" label="Must Include" hint="Exact lines, legal supers, hashtags — used word for word.">
                 <TagInput id="mandatories" value={f.mandatories} onChange={(v) => set("mandatories", v)} placeholder="Type and press Enter" />
@@ -266,7 +268,16 @@ export default function NewScript() {
             </div>
           </Section>
 
-          <Section n={6} title="Visual Direction">
+          <Section n={4} title="Story & Visuals">
+            <Field label="Hook Type">
+              <div className="options">
+                <button type="button" className={`opt sm ${!f.hook_type ? "on" : ""}`} onClick={() => set("hook_type", null)}>Auto</button>
+                {Object.keys(options!.hook_types).map((k) => (
+                  <button type="button" key={k} title={options!.hook_types[k]} className={`opt sm ${f.hook_type === k ? "on" : ""}`} onClick={() => set("hook_type", k)}>
+                    <span style={{ textTransform: k === "pov" ? "none" : "capitalize" }}>{label(k)}</span></button>))}
+              </div>
+              {f.hook_type && <p className="hint">{options!.hook_types[f.hook_type]}</p>}
+            </Field>
             <Field label="Design Style">
               <div className="options">{DESIGN_STYLES.map((d) => (
                 <button type="button" key={d} className={`opt sm ${f.design_style === d ? "on" : ""}`} onClick={() => set("design_style", f.design_style === d ? "" : d)}>{d}</button>))}
@@ -274,7 +285,7 @@ export default function NewScript() {
               </div>
             </Field>
             <Field id="elements_to_highlight" label="Elements to Highlight" hint="Product, benefits, lifestyle shots…">
-              <TagInput id="elements_to_highlight" value={f.elements_to_highlight} onChange={(v) => set("elements_to_highlight", v)} placeholder="e.g. Pour shot — press Enter" />
+              <TagInput id="elements_to_highlight" value={f.elements_to_highlight} onChange={(v) => set("elements_to_highlight", v)} placeholder="e.g. Unzipping the cover — press Enter" />
             </Field>
             <Field id="references" label="Reference Links" error={show("references") || ""} hint="Video links are read by title only, so say what to borrow.">
               <RefsEditor value={f.references} onChange={(v) => set("references", v)} />
@@ -285,13 +296,14 @@ export default function NewScript() {
                   <button type="button" key={n} className={`opt sm ${f.concept_count === n ? "on" : ""}`} onClick={() => set("concept_count", n)}>{n}</button>))}
                 </div>
               </Field>
-              <Field id="format_id" label="Script Format">
+              <Field id="format_id" label="Output Format">
                 <select id="format_id" value={f.format_id} onChange={(e) => set("format_id", e.target.value)}>
-                  {options!.formats.map((x) => <option key={x.id} value={x.id}>{x.name} (v{x.version})</option>)}
+                  {options!.formats.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </select>
               </Field>
             </div>
           </Section>
+          </details>
         </div>
 
         <aside className="summary" aria-label="Summary">
@@ -301,14 +313,15 @@ export default function NewScript() {
               <dt>Written by</dt><dd>{ENGINE_NAME[f.engine]}</dd>
               <dt>Brand</dt><dd>{f.brand_name || (validUrl(f.product_url) ? hostOf(f.product_url) : "—")}</dd>
               <dt>Platform</dt><dd>{plat?.label}</dd>
-              <dt>Format</dt><dd>{f.ad_type} · {f.duration_sec}s · {plat?.aspect}</dd>
+              <dt>Format</dt><dd>{f.duration_sec}s · {plat?.aspect}</dd>
+              <dt>Language</dt><dd>{f.language} · {f.subtitles ? "subtitles" : "no subtitles"}</dd>
               <dt>Hook</dt><dd style={{ textTransform: "capitalize" }}>{f.hook_type ? label(f.hook_type) : "Auto"}</dd>
             </dl>
             <ul className="checklist">
               <li className={!errors.product_url ? "ok" : ""}><span className="tick">✓</span>Product link</li>
               <li className={!errors.client_brief ? "ok" : ""}><span className="tick">✓</span>Brief / direction</li>
-              <li className={f.target_audience ? "ok" : ""}><span className="tick">✓</span>Audience <em>optional</em></li>
-              <li className={f.key_usps.length || f.offer || f.cta ? "ok" : ""}><span className="tick">✓</span>Messaging <em>optional</em></li>
+              <li className={f.creative_direction ? "ok" : ""}><span className="tick">✓</span>Model / talent <em>optional</em></li>
+              <li className={f.cta ? "ok" : ""}><span className="tick">✓</span>CTA <em>optional</em></li>
             </ul>
             <button className="btn primary lg block" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : cta}</button>
             <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? "Takes 3–6 minutes. You can leave the page." : `Next: paste one prompt into ${ENGINE_NAME[f.engine]}.`}</p>

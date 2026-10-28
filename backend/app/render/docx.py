@@ -120,10 +120,41 @@ class _Doc:
                 self.run(c.paragraphs[0], v, size=self.st.body_pt - 1)
 
 
+def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
+    sh = doc.build_sheet(job, spec)
+    st = spec.style
+
+    def line(k: str, v: str, indent: bool = False, before: int = 0):
+        p = out.para(before=before, after=3)
+        if indent:
+            p.paragraph_format.left_indent = Inches(0.2)
+        out.run(p, f"{k}: ", bold=True)
+        out.run(p, v)
+
+    out.para(sh.title, bold=True, size=st.h1_pt, color=st.title_hex, after=8)
+    for k, v in sh.header:
+        line(k, v)
+    out.para("Continuity (same in every scene)", bold=True, before=12, after=3)
+    for k, v in sh.continuity:
+        p = out.d.add_paragraph(style="List Bullet")
+        if k:
+            out.run(p, f"{k}: ", bold=True)
+        out.run(p, v)
+    line("Disclaimer", sh.disclaimer, before=16)
+    for sc in sh.scenes:
+        out.para(sc.heading, bold=True, before=12, after=3)
+        for k, v in sc.lines:
+            line(k, v, indent=True)
+    if sh.small_line:
+        line("Small line", doc._quoted(sh.small_line), before=12)
+
+
 def render_script_docx(job: Job, spec: FormatSpec) -> bytes:
     out = _Doc(spec)
     st = spec.style
-    for n, part in enumerate(doc.build(job, spec, include_qc=False)):
+    if st.layout == "sheet":
+        _sheet_docx(out, job, spec)
+    for n, part in enumerate(doc.build(job, spec, include_qc=False) if st.layout != "sheet" else []):
         if n:
             out.rule(st.accent_hex, width=12, before=20)
         out.para(part.title, bold=True, size=st.h1_pt, color=st.title_hex, before=12 if n else 0, after=6)
