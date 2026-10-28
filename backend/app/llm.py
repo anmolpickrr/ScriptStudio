@@ -206,13 +206,14 @@ class ChatLLM:
                     log.warning("llm stage=%s model=%s busy; retrying once", stage, model)
                     time.sleep(4)
                     continue
-                if (status in (404, 503) or _is_timeout(e)) and self._has_more(stage, offset):
+                # free tiers give each model its own quota, so a rate-limited (429) model is also skipped for now
+                if (status in (404, 429, 503) or _is_timeout(e)) and self._has_more(stage, offset):
                     log.warning("llm stage=%s model=%s %s; trying next model", stage, model,
-                                "unavailable" if status else "timed out")
+                                {429: "rate-limited", 503: "busy", 404: "unavailable"}.get(status, "timed out"))
                     offset, busy = offset + 1, 0
                     continue
-                if status == 503:
-                    offset, busy = 0, 0  # every model busy: wait, then start over from the preferred one
+                if status in (429, 503):
+                    offset, busy = 0, 0  # every model busy or limited: wait, then start over from the preferred one
                 if status in (400, 401, 403, 404):
                     raise
                 transient += 1

@@ -98,3 +98,13 @@ def test_retired_model_is_skipped_for_good(monkeypatch):
     c = llm.ChatLLM(client([gone, completion(json.dumps(BEATS))], seen))
     assert c.structured(stage="beats", system="s", user="u", schema=BeatSheet).beats
     assert [r["model"] for r in seen] == ["old-model", "new-model"] and c._model("write") == "new-model"
+
+
+def test_rate_limited_model_falls_back_to_next(monkeypatch):
+    monkeypatch.setattr(settings, "model_creative", "limited-model,spare-model")
+    monkeypatch.setattr(llm, "_model_index", {})
+    seen = []
+    limited = httpx.Response(429, json={"error": {"message": "You exceeded your current quota."}})
+    c = llm.ChatLLM(client([limited, completion(json.dumps(BEATS))], seen))
+    assert c.structured(stage="beats", system="s", user="u", schema=BeatSheet).beats
+    assert [r["model"] for r in seen] == ["limited-model", "spare-model"]
