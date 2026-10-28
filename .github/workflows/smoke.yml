@@ -52,6 +52,24 @@ jobs:
           if grep -q '"demo_mode":true' out/config; then log "WARN instance is in demo mode (no AI model)"; fi
           exit $fail
 
+      - name: GitHub Pages website reaches the API
+        if: always()
+        run: |
+          log() { echo "$*" | tee -a out/diag.txt; }; fail=0
+          SITE="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          ORIGIN="https://${GITHUB_REPOSITORY_OWNER}.github.io"
+          code=$(curl -sS -m 60 -o out/pages.html -w "%{http_code}" "$SITE")
+          js=$(grep -oE 'assets/[^"]+\.js' out/pages.html | head -1)
+          [[ "$code" == 200 && -n "$js" ]] && log "PASS pages site $SITE -> $code" || { log "FAIL pages site $SITE -> $code"; fail=1; }
+          curl -sS -m 60 -o out/pages.js "$SITE$js" && grep -q -- "$BASE" out/pages.js && log "PASS pages bundle points at $BASE" || { log "FAIL pages bundle does not use $BASE"; fail=1; }
+          deep=$(curl -sS -m 60 -o out/deep.html -w "%{http_code}" "${SITE}scripts"); grep -q 'id="root"' out/deep.html && log "PASS pages deep link (status $deep)" || { log "FAIL pages deep link"; fail=1; }
+          allow=$(curl -sS -m 60 -o /dev/null -D - -X OPTIONS "$BASE/api/jobs" -H "Origin: $ORIGIN" -H "Access-Control-Request-Method: POST" \
+                  -H "Access-Control-Request-Headers: content-type,x-requested-with,x-session-token" | tr -d '\r' | grep -i '^access-control-allow-origin:' || true)
+          [[ "$allow" == *"$ORIGIN"* ]] && log "PASS API allows $ORIGIN" || { log "FAIL API does not allow $ORIGIN yet (redeploy the API)"; fail=1; }
+          tok=$(curl -sS -m 60 -D - -o /dev/null -H "Origin: $ORIGIN" "$BASE/api/config" | tr -d '\r' | grep -i '^x-session-token:' | cut -d' ' -f2)
+          [[ -n "$tok" ]] && log "PASS API issues header session" || { log "FAIL API issues no header session"; fail=1; }
+          exit $fail
+
       - name: Generate a script from a real product page
         if: ${{ inputs.generate }}
         run: |
