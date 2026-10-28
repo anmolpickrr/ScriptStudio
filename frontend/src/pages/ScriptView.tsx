@@ -456,7 +456,8 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const send = async () => {
     if (!ready) { setSetup(true); return; }
     try { await navigator.clipboard.writeText(ask); } catch { /* the prefill still works */ }
-    const base = engine === "claude" ? "https://claude.ai/new" : gptUrl;
+    // a custom GPT link opens a chat with that GPT; a plugin's page doesn't, so plugins start a normal new chat
+    const base = engine === "claude" ? "https://claude.ai/new" : /\/g\/g-/.test(gptUrl) ? gptUrl : "https://chatgpt.com/";
     window.open(`${base}${base.includes("?") ? "&" : "?"}q=${encodeURIComponent(ask)}`, "_blank", "noopener");
     setSent(true);
     toast(`${name} is open with the request typed in — press Enter there.`, "ok");
