@@ -2,7 +2,8 @@ name: Keep alive
 # Render's free plan sleeps after 15 minutes without traffic (the next visit then takes ~1 minute).
 # This pings the app every 10 minutes during working hours so it stays awake. One always-on free
 # service fits inside Render's 750 free instance-hours per month.
-# Turn on by setting the repository variable KEEPALIVE_URL to the app URL; delete the variable to stop.
+# Pings the ScriptStudio API by default; set the repository variable KEEPALIVE_URL to point elsewhere,
+# or to "off" to stop.
 on:
   schedule:
     - cron: "*/10 2-17 * * *"   # 07:30–23:30 IST
@@ -10,8 +11,8 @@ on:
 
 jobs:
   ping:
-    if: ${{ vars.KEEPALIVE_URL != '' }}
+    if: ${{ vars.KEEPALIVE_URL != 'off' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - run: curl -fsS -m 90 --retry 2 "${{ vars.KEEPALIVE_URL }}/api/health"
+      - run: curl -fsS -m 90 --retry 2 "${{ vars.KEEPALIVE_URL || 'https://scriptstudio.onrender.com' }}/api/health"
