@@ -37,7 +37,7 @@ export default function ConnectSetup({ initial = "claude", onClose, onSaved }: {
   const [tab, setTab] = useState(initial);
   const [gpt, setGpt] = useState(getGptUrl());
   const toast = useToast();
-  const gptOk = /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/g\/g-[\w-]+/.test(gpt.trim());
+  const gptOk = /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/\S+/.test(gpt.trim());
   return (
     <Modal title="Connect your own Claude or ChatGPT" onClose={onClose} actions={
       <button className="btn primary" onClick={onClose}>Done</button>}>
@@ -64,12 +64,12 @@ export default function ConnectSetup({ initial = "claude", onClose, onSaved }: {
             <li>Leave Authentication as <b>None</b>. Click <b>Create</b>, choose <b>Only me</b> (or <b>Anyone with the link</b> to share with your team), then copy the GPT's link.</li>
             <li>Paste the GPT link here:
               <div className="row" style={{ marginTop: 8, flexWrap: "nowrap" }}>
-                <input type="url" value={gpt} placeholder="https://chatgpt.com/g/g-…" onChange={(e) => setGpt(e.target.value)} aria-label="Your ScriptStudio GPT link" />
+                <input type="url" value={gpt} placeholder="https://chatgpt.com/…" onChange={(e) => setGpt(e.target.value)} aria-label="Your ScriptStudio plugin or GPT link" />
                 <button type="button" className="btn primary" disabled={!gptOk && !!gpt} onClick={() => {
                   setGptUrl(gpt.trim()); toast(gpt.trim() ? "ChatGPT connected in this browser." : "ChatGPT link removed.", "ok"); onSaved?.();
                 }}>Save</button>
               </div>
-              {gpt && !gptOk && <div className="err">That doesn't look like a GPT link (it starts with https://chatgpt.com/g/g-).</div>}
+              {gpt && !gptOk && <div className="err">That doesn't look like a ChatGPT link (it starts with https://chatgpt.com/).</div>}
             </li>
           </ol>
         </>
