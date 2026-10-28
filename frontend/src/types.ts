@@ -61,7 +61,7 @@ export interface Job {
   events: StageEvent[]; flags: Flag[];
   dossier: { url: string; name: string; brand: string; facts: ProductFact[]; packaging_description: string; image_urls: string[] } | null;
   concepts: Concept[]; concept_decision: ConceptDecision | null;
-  script: { title: string; logline: string } | null;
+  script: { title: string; logline: string; scenes: { number: number; label: string; start_sec: number; end_sec: number; visual: string }[] } | null;
   qc_history: QCReport[]; doc_url: string | null; format_version: string; revisions: Revision[]; error: string;
   relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string } | null;
 }

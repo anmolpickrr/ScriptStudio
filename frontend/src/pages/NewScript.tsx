@@ -1,9 +1,10 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { clearDraft, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
-import { ENGINE_NAME, hostOf, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
+import { buildJobBody, clearDraft, composeBrief, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
+import { ENGINE_NAME, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
 import { useSession } from "../session";
+import { SheetPreview } from "./Home";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
 
 const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
@@ -14,24 +15,8 @@ const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
 const AD_TYPES = ["Video", "UGC video", "Product demo", "Testimonial", "Unboxing", "Explainer", "Lifestyle film"];
 const DESIGN_STYLES = ["Creator / UGC", "Lifestyle", "Premium studio", "Minimal product", "Documentary", "Animated / motion"];
 const IMAGE_SOURCES = ["Web", "Client assets", "AI generated", "Fresh shoot"];
-const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
 
 const optUrl = (u: string) => !u.trim() || validUrl(u);
-
-/** If the free-text brief is thin, build one from the structured fields so the writer has everything. */
-function composeBrief(f: JobInputs): string {
-  const text = f.client_brief.trim();
-  if (text.length >= 60) return text;
-  const lines = [
-    f.brand_name && `Brand: ${f.brand_name}`, f.target_audience && `Primary audience: ${f.target_audience}`,
-    f.creative_direction && `Creator direction: ${f.creative_direction}`, `Ad type: ${f.ad_type}`,
-    f.headline_ideas.length && `Headline ideas: ${f.headline_ideas.join("; ")}`,
-    f.key_usps.length && `Key USPs: ${f.key_usps.join("; ")}`, f.offer && `Offer: ${f.offer}`, f.cta && `CTA: ${f.cta}`,
-    f.tone && `Tone: ${f.tone}`, f.design_style && `Design style: ${f.design_style}`,
-    f.elements_to_highlight.length && `Elements to highlight: ${f.elements_to_highlight.join("; ")}`,
-  ].filter(Boolean);
-  return [text, lines.length > 1 ? `Brief details:\n${lines.join("\n")}` : ""].filter(Boolean).join("\n\n");
-}
 
 export default function NewScript() {
   const { options } = useSession();
@@ -75,6 +60,7 @@ export default function NewScript() {
   }, [f, composed]);
   const show = (k: string) => (touched[k] || touched._submit) && errors[k];
   const ready = !errors.product_url && !errors.client_brief;
+  const doneCount = [!errors.product_url, !errors.client_brief, !!f.creative_direction, !!f.cta].filter(Boolean).length;
   const blur = (k: string) => () => setTouched((t) => ({ ...t, [k]: true }));
 
   const importBrief = async (ev: ChangeEvent<HTMLInputElement>) => {
@@ -103,10 +89,7 @@ export default function NewScript() {
     }
     setBusy(true);
     try {
-      const images = f.asset_links.filter((u) => IMAGE_RE.test(u));
-      const body = { ...f, product_url: f.product_url.trim(), client_brief: composed, theme: f.theme || null, brand_name: f.brand_name || null,
-        product_image_urls: Array.from(new Set([...f.product_image_urls, ...images])).filter((u) => u.startsWith("https://")).slice(0, 4),
-        references: f.references.map((r) => ({ ...r, kind: /^https?:\/\//.test(r.value.trim()) ? "url" : "note" })) };
+      const body = buildJobBody(f);
       const job = await api.post<JobSummary>("/api/jobs", body);
       clearDraft();
       nav(`/scripts/${job.id}`);
@@ -120,14 +103,12 @@ export default function NewScript() {
     <form onSubmit={submit} noValidate>
       <div className="page-head">
         <div className="grow">
-          <div className="eyebrow"><Icon.spark /> Creative brief → script</div>
-          <h1>New script</h1>
+          <div className="eyebrow"><Icon.spark /> Creative brief → script sheet</div>
+          <h1 className="display-sm">New script</h1>
           <p>Two things are required: the product link and the client's brief. You get back a ready-to-shoot script.</p>
         </div>
         <div className="row">
           <input ref={fileRef} type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={importBrief} />
-          <button type="button" className="btn" disabled={importing} onClick={() => fileRef.current?.click()}>
-            {importing ? <Spinner /> : <Icon.upload />} Import brief (.docx)</button>
           <button type="button" className="btn ghost" onClick={() => { setF(EMPTY); setTouched({}); setImported([]); }}>Reset</button>
         </div>
       </div>
@@ -307,24 +288,18 @@ export default function NewScript() {
         </div>
 
         <aside className="summary" aria-label="Summary">
-          <div className="summary-card">
-            <h2>Summary</h2>
-            <dl>
-              <dt>Written by</dt><dd>{ENGINE_NAME[f.engine]}</dd>
-              <dt>Brand</dt><dd>{f.brand_name || (validUrl(f.product_url) ? hostOf(f.product_url) : "—")}</dd>
-              <dt>Platform</dt><dd>{plat?.label}</dd>
-              <dt>Format</dt><dd>{f.duration_sec}s · {plat?.aspect}</dd>
-              <dt>Language</dt><dd>{f.language} · {f.subtitles ? "subtitles" : "no subtitles"}</dd>
-              <dt>Hook</dt><dd style={{ textTransform: "capitalize" }}>{f.hook_type ? label(f.hook_type) : "Auto"}</dd>
-            </dl>
+          <SheetPreview f={f} compact />
+          <div className="ready-card">
+            <div className="ready-head"><b>{doneCount === 4 ? "Everything's in" : ready ? "Ready to write" : "Almost there"}</b><span>{doneCount}/4</span></div>
+            <div className="meter" aria-hidden="true"><i style={{ width: `${(doneCount / 4) * 100}%` }} /></div>
             <ul className="checklist">
               <li className={!errors.product_url ? "ok" : ""}><span className="tick">✓</span>Product link</li>
-              <li className={!errors.client_brief ? "ok" : ""}><span className="tick">✓</span>Brief / direction</li>
+              <li className={!errors.client_brief ? "ok" : ""}><span className="tick">✓</span>Client brief</li>
               <li className={f.creative_direction ? "ok" : ""}><span className="tick">✓</span>Model / talent <em>optional</em></li>
               <li className={f.cta ? "ok" : ""}><span className="tick">✓</span>CTA <em>optional</em></li>
             </ul>
-            <button className="btn primary lg block" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : cta}</button>
-            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? "Takes 3–6 minutes. You can leave the page." : `Next: paste one prompt into ${ENGINE_NAME[f.engine]}.`}</p>
+            <button className="btn primary lg block" disabled={busy}>{busy ? <Spinner /> : <Icon.spark />}{busy ? "Starting…" : cta}</button>
+            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 3–6 minutes, you can leave the page.` : `Next: one prompt for ${ENGINE_NAME[f.engine]}.`}</p>
           </div>
         </aside>
       </div>

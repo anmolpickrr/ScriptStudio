@@ -36,3 +36,31 @@ export async function importBriefFile(file: File): Promise<{ fields: Partial<Job
   for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
   return api.post("/api/brief/import", { filename: file.name, data_base64: btoa(bin) });
 }
+
+/** If the free-text brief is thin, build one from the structured fields so the writer has everything. */
+export function composeBrief(f: JobInputs): string {
+  const text = f.client_brief.trim();
+  if (text.length >= 60) return text;
+  const lines = [
+    f.brand_name && `Brand: ${f.brand_name}`, f.target_audience && `Primary audience: ${f.target_audience}`,
+    f.creative_direction && `Creator direction: ${f.creative_direction}`, `Ad type: ${f.ad_type}`,
+    f.headline_ideas.length && `Headline ideas: ${f.headline_ideas.join("; ")}`,
+    f.key_usps.length && `Key USPs: ${f.key_usps.join("; ")}`, f.offer && `Offer: ${f.offer}`, f.cta && `CTA: ${f.cta}`,
+    f.tone && `Tone: ${f.tone}`, f.design_style && `Design style: ${f.design_style}`,
+    f.elements_to_highlight.length && `Elements to highlight: ${f.elements_to_highlight.join("; ")}`,
+  ].filter(Boolean);
+  return [text, lines.length > 1 ? `Brief details:\n${lines.join("\n")}` : ""].filter(Boolean).join("\n\n");
+}
+
+
+const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
+
+/** The request body for POST /api/jobs. */
+export function buildJobBody(f: JobInputs) {
+  const images = f.asset_links.filter((u) => IMAGE_RE.test(u));
+  return {
+    ...f, product_url: f.product_url.trim(), client_brief: composeBrief(f), theme: f.theme || null, brand_name: f.brand_name || null,
+    product_image_urls: Array.from(new Set([...f.product_image_urls, ...images])).filter((u) => u.startsWith("https://")).slice(0, 4),
+    references: f.references.map((r) => ({ ...r, kind: /^https?:\/\//.test(r.value.trim()) ? "url" : "note" })),
+  };
+}

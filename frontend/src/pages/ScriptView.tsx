@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
+import { EMPTY, saveDraft } from "../brief";
 import { getDriveToken } from "../google";
-import { ENGINE_NAME, ENGINE_URL, hostOf, Icon, label, Menu, Modal, PageSkeleton, Spinner, StatusBadge, timeAgo, useToast } from "../components/ui";
+import { ENGINE_NAME, ENGINE_URL, hostOf, Icon, label, Menu, Modal, Monogram, PageSkeleton, Spinner, StatusBadge, timeAgo, useMedia, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Job, JobSummary, StageEvent } from "../types";
 
@@ -27,6 +28,8 @@ export default function ScriptView() {
   const [frameKey, setFrameKey] = useState(0);
   const [modal, setModal] = useState<"approve" | "revise" | "delete" | null>(null);
   const [working, setWorking] = useState("");
+  const wide = useMedia("(min-width: 1100px)");
+  const [docRef, setDocRef] = useState<{ doc: Document; frame: HTMLIFrameElement } | null>(null);
 
   const load = useCallback(async () => {
     try { setJob(await api.get<Job>(`/api/jobs/${id}`)); setLoadError(""); }
@@ -36,7 +39,7 @@ export default function ScriptView() {
     }
   }, [id]);
 
-  useEffect(() => { setJob(null); setTab("script"); load(); }, [load]);
+  useEffect(() => { setJob(null); setTab("script"); setDocRef(null); load(); }, [load]);
   const busy = !!job && BUSY.includes(job.status);
   const wasBusy = useRef(false);
   useEffect(() => {
@@ -74,26 +77,119 @@ export default function ScriptView() {
   const download = (kind: "docx" | "download") => act(kind, () =>
     api.download(`/api/jobs/${job.id}/${kind}`, `${job.script?.title || "script"}.${kind === "docx" ? "docx" : "html"}`));
 
-  const tabs: { key: Tab; label: string; count?: number; show: boolean }[] = [
-    { key: "script", label: "Script", show: true },
-    { key: "review", label: "Quality review", count: openFindings.length || undefined, show: !!qc },
-    { key: "flags", label: "Client flags", count: flags.length || undefined, show: flags.length > 0 },
+  const allTabs: { key: Tab; label: string; count?: number; show: boolean }[] = [
+    { key: "script", label: "Script", show: !wide },
+    { key: "review", label: "Quality", count: openFindings.length || undefined, show: !!qc },
+    { key: "flags", label: "Flags", count: flags.length || undefined, show: flags.length > 0 },
     { key: "concepts", label: "Concepts", count: job.concepts.length || undefined, show: job.concepts.length > 0 },
-    { key: "facts", label: "Product facts", show: !!job.dossier },
-    { key: "history", label: "History", show: job.revisions.length > 0 },
+    { key: "facts", label: "Facts", count: job.dossier?.facts.filter((f) => f.verified).length || undefined, show: !!job.dossier },
+    { key: "history", label: "History", count: job.revisions.length || undefined, show: job.revisions.length > 0 },
   ];
+  const tabs = allTabs.filter((t) => t.show);
+  // on wide screens the script is always visible, so the panel shows the first other tab instead
+  const active: Tab = tabs.some((t) => t.key === tab) ? tab : (tabs[0]?.key ?? "script");
+  const brand = job.dossier?.brand || job.inputs.brand_name || hostOf(job.inputs.product_url);
+  const title = job.script?.title || job.dossier?.name || `Script for ${hostOf(job.inputs.product_url)}`;
+  const openPanel = (t: Tab) => { setTab(t); if (!wide) window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+  const panel = (t: Tab) => {
+    if (t === "review" && qc) return (
+      <div className="panel">
+        <div className="score-head">
+          <ScoreRing scores={qc.scores} />
+          <div><b>{qc.passed ? "Passed every quality gate" : "Needs an editor's eye"}</b>
+            <div className="muted small">Editorial review · round {qc.iteration}</div></div>
+        </div>
+        {qc.summary && <p className="muted small" style={{ margin: 0 }}>{qc.summary}</p>}
+        <div className="scores">
+          {Object.entries(qc.scores).map(([k, v]) => (
+            <div key={k} className={`score ${v < 4 ? "low" : v === 5 ? "high" : ""}`}>
+              <span>{label(k)}</span><span className="pips" aria-label={`${v} of 5`}>{[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= v ? "on" : ""} />)}</span>
+            </div>))}
+        </div>
+        {qc.findings.filter((f) => f.severity !== "info").length === 0 ? <p className="muted small">No open findings.</p> : (
+          <div className="stack-sm">
+            {qc.findings.filter((f) => f.severity !== "info").sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity)).map((f, i) => (
+              <div key={i} className={`flag ${f.severity}`}><span className="sev">{label(f.check)}</span>
+                {f.scene ? <b>Scene {f.scene}: </b> : null}{f.message}{f.fix && <div className="sug">→ {f.fix}</div>}</div>
+            ))}
+          </div>
+        )}
+        {!qc.passed && <button className="btn secondary sm" onClick={() => setModal("revise")}>Revise with notes</button>}
+      </div>
+    );
+    if (t === "flags") return (
+      <div className="panel">
+        <p className="muted small" style={{ margin: 0 }}>Missing or conflicting details to confirm with the client. The script never fills these gaps with invented details.</p>
+        {flags.map((f, i) => (
+          <div key={i} className={`flag ${f.severity}`}><span className="sev">{f.severity}</span>{f.message}{f.suggestion && <div className="sug">→ {f.suggestion}</div>}</div>
+        ))}
+      </div>
+    );
+    if (t === "concepts") return (
+      <div className="panel">
+        {job.concept_decision?.director_notes && <div className="note-card"><b>🎬 Director's notes</b><span>{job.concept_decision.director_notes}</span></div>}
+        {job.concepts.map((c, i) => {
+          const chosen = i === (job.concept_decision?.chosen_index ?? 0);
+          const score = job.concept_decision?.scores.find((x) => x.index === i);
+          return (
+            <div key={i} className={`concept ${chosen ? "chosen" : ""}`}>
+              <div className="row" style={{ flexWrap: "nowrap" }}><b style={{ flex: 1 }}>{c.title}</b>{chosen && <span className="badge ready">In script</span>}</div>
+              <div className="small">{c.logline}</div>
+              <div className="hookline">“{c.hook_line}”</div>
+              {score && <div className="muted small">Hook {score.hook}/5 · Brief fit {score.brief_fit}/5 · Originality {score.originality}/5</div>}
+              {!chosen && !busy && <div className="foot"><button className="btn secondary sm" disabled={!!working} onClick={() => rerun("concept", { index: i }, job.inputs.engine === "auto" ? "Rewriting with this concept…" : `Prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)}>Use this concept</button></div>}
+            </div>
+          );
+        })}
+      </div>
+    );
+    if (t === "facts" && job.dossier) return (
+      <div className="panel">
+        <p className="muted small" style={{ margin: 0 }}>From <a href={job.dossier.url} target="_blank" rel="noopener noreferrer">the product page</a>. Hover a fact for the exact quote. Crossed-out items couldn't be verified and aren't used.</p>
+        <ul className="facts">
+          {job.dossier.facts.map((f) => (
+            <li key={f.id} title={`“${f.evidence.quote}”`} className={f.verified ? "" : "no"}>
+              <span className="id">{f.id}</span><span>{f.statement}</span><span className="cat">{f.category}</span>
+            </li>
+          ))}
+        </ul>
+        {job.dossier.packaging_description && <p className="small"><b>Packaging:</b> {job.dossier.packaging_description}</p>}
+      </div>
+    );
+    if (t === "history") return (
+      <div className="panel">
+        <ol className="timeline">
+          {job.revisions.slice().reverse().map((r, i) => (
+            <li key={i}><b>{r.kind === "feedback" ? "Revised with notes" : "Switched concept"}</b> <span className="muted small">· {timeAgo(r.at)}</span>
+              <div className="muted small" style={{ whiteSpace: "pre-wrap" }}>{r.detail}</div></li>
+          ))}
+        </ol>
+      </div>
+    );
+    return job.script ? <ScriptPreview key={frameKey} jobId={job.id} onReady={setDocRef} /> : <div className="card empty"><p>No script was produced.</p></div>;
+  };
 
   return (
     <>
-      <div className="page-head">
-        <div className="grow">
-          <div className="row" style={{ gap: 10 }}><h1>{job.script?.title || job.dossier?.name || `Script for ${hostOf(job.inputs.product_url)}`}</h1><StatusBadge status={job.status} /></div>
-          <p className="small">
-            {[job.dossier?.brand || hostOf(job.inputs.product_url), options?.platforms[job.inputs.platform]?.label || job.inputs.platform, `${job.inputs.duration_sec}s`, `created ${timeAgo(job.created_at)}`].filter(Boolean).join(" · ")}
-          </p>
+      <div className="room-head">
+        <Link className="back-link" to="/scripts"><Icon.back /> Scripts</Link>
+        <div className="room-title">
+          <Monogram text={brand} size={52} />
+          <div className="grow">
+            <h1>{title}</h1>
+            <div className="meta-chips">
+              <StatusBadge status={job.status} />
+              <span className="chip-meta">{brand}</span>
+              <span className="chip-meta">{options?.platforms[job.inputs.platform]?.label || job.inputs.platform} · {job.inputs.duration_sec}s</span>
+              <span className="chip-meta">{job.inputs.language}</span>
+              <span className="chip-meta"><span className={`dotlogo xs ${job.inputs.engine === "auto" ? "ss" : job.inputs.engine === "chatgpt" ? "gpt" : "claude"}`} />{ENGINE_NAME[job.inputs.engine]}</span>
+              <span className="chip-meta muted">created {timeAgo(job.created_at)}</span>
+            </div>
+          </div>
         </div>
         {job.script && !busy && (
-          <div className="row">
+          <div className="room-actions">
             <button className="btn secondary" onClick={() => setModal("revise")}>Revise</button>
             <Menu trigger={(toggle) => (
               <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={["export", "docx", "download"].includes(working)}>
@@ -105,7 +201,8 @@ export default function ScriptView() {
                 <button onClick={() => { close(); download("download"); }}>HTML<small>Same layout, for email or archiving</small></button>
               </>)}
             </Menu>
-            <button className="btn primary" onClick={() => setModal("approve")} disabled={job.status === "approved"}>{job.status === "approved" ? "✓ Approved" : "Approve"}</button>
+            <button className={`btn primary ${job.status === "approved" ? "done" : ""}`} onClick={() => setModal("approve")} disabled={job.status === "approved"}>
+              {job.status === "approved" ? <><Icon.check /> Approved</> : "Approve"}</button>
             <Menu trigger={(toggle) => <button className="btn ghost icon" aria-label="More actions" onClick={toggle}><Icon.more /></button>}>
               {(close) => <button className="danger" onClick={() => { close(); setModal("delete"); }}>Delete script</button>}
             </Menu>
@@ -122,113 +219,47 @@ export default function ScriptView() {
           <div style={{ flex: 1 }}><b>Generation failed.</b> {job.error || "Something went wrong."}
             <div className="row" style={{ marginTop: 10 }}>
               <button className="btn primary" disabled={!!working} onClick={() => rerun("retry", {}, "Restarted.")}>{working === "retry" && <Spinner />}Try again</button>
-              <Link className="btn secondary" to="/new">Edit inputs in a new script</Link>
+              <button className="btn secondary" onClick={() => { saveDraft({ ...EMPTY, ...job.inputs }); nav("/new"); }}>Edit inputs &amp; try again</button>
             </div>
           </div>
         </div>
       )}
       {job.error && job.status !== "failed" && !busy && <div className="banner">ℹ️ {job.error}</div>}
       {blockers > 0 && !busy && job.script && (
-        <div className="banner bad"><span>⚠️</span><span><b>{blockers} blocker{blockers > 1 ? "s" : ""} for the client.</b> Some details couldn't be confirmed, so the script works around them. <button className="toggle-link" style={{ margin: 0 }} onClick={() => setTab("flags")}>Review flags</button></span></div>
+        <div className="banner bad"><span>⚠️</span><span><b>{blockers} blocker{blockers > 1 ? "s" : ""} for the client.</b> Some details couldn't be confirmed, so the script works around them. <button className="toggle-link" style={{ margin: 0 }} onClick={() => openPanel("flags")}>Review flags</button></span></div>
       )}
       {job.doc_url && <div className="banner info">📄 <span>Google Doc: <a href={job.doc_url} target="_blank" rel="noopener noreferrer">open in Google Docs</a></span></div>}
 
-      {(job.script || (!busy && job.status !== "awaiting_input")) && (
+      {(job.script || (!busy && !["awaiting_input", "failed"].includes(job.status))) && (wide ? (
+        <div className={`room ${job.script?.scenes?.length ? "" : "no-nav"}`}>
+          {!!job.script?.scenes?.length && <SceneNav scenes={job.script.scenes} doc={docRef} />}
+          <div className="room-paper">{panel("script")}</div>
+          {tabs.length > 0 && (
+            <aside className="inspector">
+              <div className="tabs" role="tablist">
+                {tabs.map((t) => (
+                  <button key={t.key} role="tab" aria-selected={active === t.key} className={active === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
+                    {t.label}{t.count ? <span className="badge count">{t.count}</span> : null}</button>))}
+              </div>
+              <div className="inspector-body" key={active}>{panel(active)}</div>
+            </aside>
+          )}
+        </div>
+      ) : (
         <>
-          <div className="tabs" role="tablist">
-            {tabs.filter((t) => t.show).map((t) => (
-              <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
-                {t.label}{t.count ? <span className="badge count">{t.count}</span> : null}
-              </button>
-            ))}
+          <div className="tabs sticky-tabs" role="tablist">
+            {tabs.map((t) => (
+              <button key={t.key} role="tab" aria-selected={active === t.key} className={active === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
+                {t.label}{t.count ? <span className="badge count">{t.count}</span> : null}</button>))}
           </div>
-
-          {tab === "script" && (job.script ? (
-            <ScriptPreview key={frameKey} jobId={job.id} />
-          ) : <div className="card empty"><p>No script was produced.</p></div>)}
-
-          {tab === "review" && qc && (
-            <div className="card stack">
-              <div className="card-head"><h2 className="grow">{qc.passed ? "✓ Passed every quality gate" : "Needs an editor's eye"}</h2>
-                <span className="muted small">Review round {qc.iteration}</span></div>
-              {qc.summary && <p className="muted" style={{ margin: 0 }}>{qc.summary}</p>}
-              <div className="scores">
-                {Object.entries(qc.scores).map(([k, v]) => <div key={k} className={`score ${v < 4 ? "low" : v === 5 ? "high" : ""}`}><b>{v}<span className="small muted">/5</span></b>{label(k)}</div>)}
-              </div>
-              {qc.findings.length === 0 ? <p className="muted">No open findings.</p> : (
-                <div className="stack-sm">
-                  {qc.findings.filter((f) => f.severity !== "info").sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity)).map((f, i) => (
-                    <div key={i} className={`flag ${f.severity}`}><span className="sev">{label(f.check)}</span>
-                      {f.scene ? <b>Scene {f.scene}: </b> : null}{f.message}{f.fix && <div className="sug">→ {f.fix}</div>}</div>
-                  ))}
-                </div>
-              )}
-              {!qc.passed && <div><button className="btn secondary" onClick={() => setModal("revise")}>Revise with notes</button></div>}
-            </div>
-          )}
-
-          {tab === "flags" && (
-            <div className="card stack-sm">
-              <p className="muted" style={{ margin: "0 0 6px" }}>Missing or conflicting information to confirm with the client. The script never fills these gaps with invented details.</p>
-              {flags.map((f, i) => (
-                <div key={i} className={`flag ${f.severity}`}><span className="sev">{f.severity}</span>{f.message}{f.suggestion && <div className="sug">→ {f.suggestion}</div>}</div>
-              ))}
-            </div>
-          )}
-
-          {tab === "concepts" && (
-            <div className="stack">
-              {job.concept_decision?.director_notes && <div className="banner info"><span>🎬</span><span><b>Director's notes:</b> {job.concept_decision.director_notes}</span></div>}
-              <div className="concepts">
-                {job.concepts.map((c, i) => {
-                  const chosen = i === (job.concept_decision?.chosen_index ?? 0);
-                  const score = job.concept_decision?.scores.find((s) => s.index === i);
-                  return (
-                    <div key={i} className={`concept ${chosen ? "chosen" : ""}`}>
-                      <div className="row"><b style={{ flex: 1 }}>{c.title}</b>{chosen && <span className="badge ready">In script</span>}</div>
-                      <div>{c.logline}</div>
-                      <div className="hookline">Hook: “{c.hook_line}”</div>
-                      <div className="muted small">{c.why_it_works}</div>
-                      {score && <div className="muted small">Hook {score.hook}/5 · Brief fit {score.brief_fit}/5 · Originality {score.originality}/5</div>}
-                      {!chosen && !busy && <div className="foot"><button className="btn secondary" disabled={!!working} onClick={() => rerun("concept", { index: i }, job.inputs.engine === "auto" ? "Rewriting with this concept…" : `Prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)}>Use this concept</button></div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {tab === "facts" && job.dossier && (
-            <div className="card stack-sm">
-              <p className="muted" style={{ margin: "0 0 6px" }}>From <a href={job.dossier.url} target="_blank" rel="noopener noreferrer">the product page</a>. Hover a fact to see the exact quote it's based on. Crossed-out items couldn't be verified and aren't used.</p>
-              <ul className="facts">
-                {job.dossier.facts.map((f) => (
-                  <li key={f.id} title={`“${f.evidence.quote}”`} className={f.verified ? "" : "no"}>
-                    <span className="id">{f.id}</span><span>{f.statement}</span><span className="cat">{f.category}</span>
-                  </li>
-                ))}
-              </ul>
-              {job.dossier.packaging_description && <p className="small"><b>Packaging:</b> {job.dossier.packaging_description}</p>}
-            </div>
-          )}
-
-          {tab === "history" && (
-            <div className="card stack-sm">
-              {job.revisions.slice().reverse().map((r, i) => (
-                <div key={i} style={{ paddingBottom: 10, borderBottom: "1px solid var(--line-2)" }}>
-                  <b>{r.kind === "feedback" ? "Revised with notes" : "Switched concept"}</b> <span className="muted small">· {timeAgo(r.at)}</span>
-                  <div className="muted" style={{ whiteSpace: "pre-wrap" }}>{r.detail}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="mobile-panel" key={active}>{panel(active)}</div>
         </>
-      )}
+      ))}
 
       {modal === "revise" && <ReviseModal engine={job.inputs.engine} onClose={() => setModal(null)}
         onSubmit={(feedback) => rerun("revise", { feedback }, job.inputs.engine === "auto" ? "Revising… this takes a minute or two." : `Revision prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)} />}
       {modal === "approve" && <ApproveModal blockers={blockers} admin={!!user?.admin} onClose={() => setModal(null)}
-        onSubmit={(body) => act("approve", () => api.post(`/api/jobs/${job.id}/approve`, body), "Approved and added to the house library.")} />}
+        onSubmit={(body) => act("approve", () => api.post(`/api/jobs/${job.id}/approve`, body), "Approved and added to the house library. 🎉")} />}
       {modal === "delete" && (
         <Modal title="Delete this script?" onClose={() => setModal(null)} actions={<>
           <button className="btn ghost" onClick={() => setModal(null)}>Cancel</button>
@@ -237,6 +268,61 @@ export default function ScriptView() {
         </Modal>
       )}
     </>
+  );
+}
+
+/** Overall quality as a ring: the average of the critic's eight scores. */
+function ScoreRing({ scores }: { scores: Record<string, number> }) {
+  const vals = Object.values(scores);
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  const r = 26, c = 2 * Math.PI * r;
+  return (
+    <div className="ring" aria-label={`Average score ${avg.toFixed(1)} of 5`}>
+      <svg viewBox="0 0 64 64" width="64" height="64">
+        <circle cx="32" cy="32" r={r} className="ring-bg" />
+        <circle cx="32" cy="32" r={r} className="ring-fg" strokeDasharray={c} strokeDashoffset={c * (1 - avg / 5)} />
+      </svg>
+      <b>{avg.toFixed(1)}</b>
+    </div>
+  );
+}
+
+/** Scene list beside the script: jumps to a scene and follows along as you scroll. */
+function SceneNav({ scenes, doc }: { scenes: NonNullable<Job["script"]>["scenes"]; doc: { doc: Document; frame: HTMLIFrameElement } | null }) {
+  const [active, setActive] = useState(1);
+  const heads = useCallback(() => {
+    if (!doc) return [] as { n: number; el: HTMLElement }[];
+    return Array.from(doc.doc.querySelectorAll<HTMLElement>("p")).map((el) => ({ n: Number(/^Scene (\d+)/.exec(el.textContent || "")?.[1]), el }))
+      .filter((x) => x.n > 0);
+  }, [doc]);
+  useEffect(() => {
+    if (!doc) return;
+    const onScroll = () => {
+      const top = doc.frame.getBoundingClientRect().top;
+      let cur = 1;
+      for (const h of heads()) if (top + h.el.offsetTop < window.innerHeight * 0.4) cur = h.n;
+      setActive(cur);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [doc, heads]);
+  const jump = (n: number) => {
+    const h = heads().find((x) => x.n === n);
+    if (!h || !doc) return;
+    window.scrollTo({ top: doc.frame.getBoundingClientRect().top + window.scrollY + h.el.offsetTop - 96, behavior: "smooth" });
+  };
+  const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}`;
+  return (
+    <nav className="scene-nav" aria-label="Scenes">
+      <div className="scene-nav-h">Scenes</div>
+      {scenes.map((sc) => (
+        <button key={sc.number} className={active === sc.number ? "on" : ""} onClick={() => jump(sc.number)}>
+          <span className="sn">{String(sc.number).padStart(2, "0")}</span>
+          <span className="grow"><b>{sc.label || `Scene ${sc.number}`}</b><small>{fmt(sc.start_sec)}–{fmt(sc.end_sec)}</small></span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -261,21 +347,32 @@ function Progress({ job }: { job: Job }) {
   const curStep = current === "revise" && plan.includes("qc") && done.has("revise") ? "qc" : current;
 
   return (
-    <div className="card" style={{ marginBottom: 16 }} aria-live="polite">
-      <div className="card-head">
-        <Spinner /><h2 className="grow">{job.status === "queued" ? "Queued — starting shortly" : STAGE[curStep || ""] || "Working…"}</h2>
-        <span className="muted small nowrap">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed</span>
+    <div className="production" aria-live="polite">
+      <div className="production-head">
+        <div className="production-orb" aria-hidden="true"><i /><i /><i /></div>
+        <div className="grow">
+          <div className="eyebrow">{job.status === "queued" ? "Queued" : "Writing your script"}</div>
+          <h2>{job.status === "queued" ? "Starting shortly…" : STAGE[curStep || ""] || "Working…"}</h2>
+          {curStep && details[curStep] && <p className="muted small">{details[curStep]}</p>}
+        </div>
+        <div className="clock"><b>{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</b><span>elapsed</span></div>
       </div>
-      <div className="bar"><div style={{ width: `${job.status === "queued" ? 3 : pct}%` }} /></div>
-      <ul className="steps">
-        {plan.map((s) => {
-          const isDone = done.has(s) && s !== curStep;
-          const cls = failed.has(s) ? "failed" : s === curStep ? "active" : isDone ? "done" : "";
-          return <li key={s} className={cls}><span className="ic">{isDone ? "✓" : ""}</span>{STAGE[s]}
-            {details[s] && (isDone || s === curStep) && <span className="detail">{details[s]}</span>}</li>;
-        })}
-      </ul>
-      <p className="hint" style={{ marginTop: 12 }}>Usually 2–5 minutes. You can leave this page — your script keeps generating and will be in <Link to="/scripts">My scripts</Link>.</p>
+      <div className="track" style={{ ["--pct" as string]: `${job.status === "queued" ? 2 : pct}%` }}>
+        <div className="track-fill" />
+        <ol>
+          {plan.map((st, n) => {
+            const isDone = done.has(st) && st !== curStep;
+            const cls = failed.has(st) ? "failed" : st === curStep ? "active" : isDone ? "done" : "";
+            return (
+              <li key={st} className={cls}>
+                <span className="node">{isDone ? <Icon.check /> : String(n + 1).padStart(2, "0")}</span>
+                <span className="lbl">{STAGE[st]}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <p className="hint">Usually 2–5 minutes. You can leave this page — the script keeps writing and appears in <Link to="/scripts">My scripts</Link>.</p>
     </div>
   );
 }
@@ -414,7 +511,7 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
 }
 
 /** The rendered document, fetched with the session (works when the API lives on another origin). */
-function ScriptPreview({ jobId }: { jobId: string }) {
+function ScriptPreview({ jobId, onReady }: { jobId: string; onReady?: (d: { doc: Document; frame: HTMLIFrameElement }) => void }) {
   const [html, setHtml] = useState<string | null>(null);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -432,6 +529,7 @@ function ScriptPreview({ jobId }: { jobId: string }) {
               if (!d) return;
               const fit = () => { fr.style.height = d.documentElement.scrollHeight + 24 + "px"; };
               fit(); new ResizeObserver(fit).observe(d.body);
+              onReady?.({ doc: d, frame: fr });
             }} />
   );
 }

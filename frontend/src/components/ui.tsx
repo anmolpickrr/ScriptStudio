@@ -22,7 +22,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={push}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
-        {items.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}
+        {items.map((t) => (
+          <div key={t.id} className={`toast ${t.kind}`}>
+            <span className="toast-ic" aria-hidden="true">{t.kind === "ok" ? "✓" : t.kind === "error" ? "!" : "i"}</span>{t.text}
+          </div>
+        ))}
       </div>
     </ToastCtx.Provider>
   );
@@ -181,5 +185,46 @@ export const Icon = {
   ext: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>,
   spark: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></svg>,
   upload: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>,
+  search: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
+  back: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M15 18l-6-6 6-6" /></svg>,
+  board: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><rect x="3" y="4" width="5" height="16" rx="1.5" /><rect x="10" y="4" width="5" height="10" rx="1.5" /><rect x="17" y="4" width="4" height="13" rx="1.5" /></svg>,
+  list: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" /></svg>,
+  check: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M20 6 9 17l-5-5" /></svg>,
+  film: () => <svg viewBox="0 0 24 24" {...P}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></svg>,
+  flag: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M5 21V4h11l-1.5 4L16 12H5" /></svg>,
+  user: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>,
+  arrow: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" /></svg>,
   down: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="m6 9 6 6 6-6" /></svg>,
 };
+
+// ---------------------------------------------------------------- media query hook
+export function useMedia(query: string): boolean {
+  const [match, setMatch] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setMatch(m.matches);
+    on(); m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
+
+/** A stable colour per brand, so the same client always looks the same across the app. */
+export function hueOf(text: string): number {
+  let h = 0;
+  for (const c of text) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return h;
+}
+
+export function Monogram({ text, size = 34 }: { text: string; size?: number }) {
+  const h = hueOf(text || "S");
+  return (
+    <span className="mono" aria-hidden="true" style={{ width: size, height: size, fontSize: size * 0.42,
+      background: `linear-gradient(135deg, hsl(${h} 70% 62%), hsl(${(h + 40) % 360} 75% 48%))` }}>
+      {(text || "S").replace(/^www\./, "")[0]?.toUpperCase()}
+    </span>
+  );
+}
+
+export const Kbd = ({ children }: { children: ReactNode }) => <kbd className="kbd">{children}</kbd>;
+export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
