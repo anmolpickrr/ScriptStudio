@@ -435,14 +435,18 @@ table.list tr.click { cursor: pointer; transition: background .12s; } table.list
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* first load while the free server wakes */
-.waking { display: grid; place-items: center; padding: 24px; }
-.waking-card { width: min(440px, 100%); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.waking-card .brand { padding-bottom: 8px; }
-.waking-card p { color: var(--text-2); margin: 0; }
-.waking-bars { display: flex; gap: 6px; margin: 6px 0 8px; }
-.waking-bars i { width: 34px; height: 6px; border-radius: 6px; background: var(--brand-gradient); animation: pulse 1.2s ease-in-out infinite; }
-.waking-bars i:nth-child(2) { animation-delay: .2s; } .waking-bars i:nth-child(3) { animation-delay: .4s; }
+/* first load: same branded loading screen as Capstudio (index.html carries a copy for before the app starts) */
+.loading-screen { position: fixed; inset: 0; display: grid; place-items: center; z-index: 100;
+  background: radial-gradient(520px 360px at 50% 42%, rgba(96, 55, 215, .22), transparent 70%),
+              radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1.2px) 0 0 / 22px 22px, #050505; }
+.loading-box { display: grid; justify-items: center; gap: 22px; text-align: center; padding: 24px; }
+.loading-box img { width: 180px; height: auto; }
+.loading-bar { width: 220px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.loading-bar i { display: block; width: 35%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6037d7, #a08bff); animation: loading-slide 1.3s ease-in-out infinite; }
+@keyframes loading-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.loading-msg { margin: 0; color: #a1a1aa; max-width: 34ch; min-height: 1em; animation: fade .4s ease; }
+.loading-msg small { display: block; margin-top: 6px; color: #6b6b74; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .loading-bar i { animation: none; width: 100%; } }
 .doc-loading { display: grid; place-items: center; min-height: 40vh; background: var(--bg-1) !important; }
 .relay-step.focus { border-color: var(--accent-line); box-shadow: var(--glow); }
 .relay-step.focus .n { background: var(--brand); border-color: transparent; color: #fff; }

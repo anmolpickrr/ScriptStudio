@@ -83,19 +83,17 @@ function Shell() {
   );
 }
 
-/** First load: the free server sleeps when idle, so explain the wait instead of showing a bare spinner. */
+/** First load: the same branded loading screen as Capstudio. The free server sleeps when idle, so after a few
+ *  seconds it also explains the wait. index.html draws the same screen before the app starts. */
 function Waking({ slow }: { slow: boolean }) {
   return (
-    <div className="waking canvas">
-      <div className="waking-card">
-        <BrandMark />
-        <div className="waking-bars" aria-hidden="true"><i /><i /><i /></div>
-        {slow ? (
-          <>
-            <h2>Waking up the studio…</h2>
-            <p>ScriptStudio runs on free hosting that naps when nobody is using it. This first load can take up to a minute; after that it's quick.</p>
-          </>
-        ) : <p className="muted">Loading…</p>}
+    <div className="loading-screen">
+      <div className="loading-box">
+        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="ScriptStudio by fastrr" />
+        <div className="loading-bar" aria-hidden="true"><i /></div>
+        <p className="loading-msg" role="status" aria-label="Loading">
+          {slow && <>Waking up the studio…<small>Free hosting naps when nobody is using it. The first load can take up to a minute.</small></>}
+        </p>
       </div>
     </div>
   );
