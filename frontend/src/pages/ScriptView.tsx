@@ -447,7 +447,7 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState(relay.last_error);
   const [busy, setBusy] = useState(false);
-  const ask = `Use ScriptStudio to write script ${relay.code}`;
+  const ask = engine === "chatgpt" ? `@ScriptStudio write script ${relay.code}` : `Use ScriptStudio to write script ${relay.code}`;
   const ready = engine === "claude" || !!gptUrl;
 
   useEffect(() => { setError(relay.last_error); }, [relay.last_error]);
@@ -494,7 +494,7 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
           <h2>{sent ? `Waiting for ${name}…` : ready ? `Send this job to ${name}` : `Connect ${name} once to skip copy-paste`}</h2>
           <p className="muted">{sent
             ? `Press Enter in ${name}. It fetches the brief and product facts, writes the script and sends it back — this page updates by itself.`
-            : ready ? `${name} opens with the request already typed. Press Enter there; the finished script appears here automatically.`
+            : ready ? `${name} opens with the request already typed${engine === "chatgpt" ? " (check the ScriptStudio plugin is selected)" : ""}. Press Enter there; the finished script appears here automatically.`
               : `A 2-minute, one-time setup lets ${name} fetch jobs and send scripts back by itself.`}</p>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="btn primary lg" onClick={send}>{sent ? <Icon.ext /> : <Icon.spark />} {sent ? `Open ${name} again` : ready ? `Send to ${name}` : `Set up ${name}`}</button>
