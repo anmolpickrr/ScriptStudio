@@ -29,7 +29,8 @@ def test_claude_connector_fetches_and_submits_a_job(client):
     text = job["content"][0]["text"]
     assert not job["isError"] and "PRODUCT SOURCE" in text and "submit_script" in text and "```json code block" not in text
 
-    wrong = rpc(client, "tools/call", {"name": "get_script_job", "arguments": {"code": code[:-1] + "0"}})["result"]
+    bad_code = code[:-1] + ("1" if code[-1] == "0" else "0")  # one character off
+    wrong = rpc(client, "tools/call", {"name": "get_script_job", "arguments": {"code": bad_code}})["result"]
     assert wrong["isError"] and "No ScriptStudio job" in wrong["content"][0]["text"]
 
     bad = rpc(client, "tools/call", {"name": "submit_script", "arguments": {"code": code, "script": {"product_name": "x"}}})["result"]
@@ -54,7 +55,7 @@ def test_chatgpt_action_endpoints(client):
 
     got = client.get(f"/connect/jobs/{code}").json()  # no CSRF header: called by OpenAI's servers, guarded by the code
     assert "submitScript" in got["instructions"] and got["kind"] == "new script"
-    assert client.get(f"/connect/jobs/SS-{jid}-00000000").status_code == 404
+    assert client.get(f"/connect/jobs/SS-{jid}-{'1' * 8 if code.endswith('0' * 8) else '0' * 8}").status_code == 404
 
     res = client.post(f"/connect/jobs/{code}", json={"script": answer()}).json()  # a string (with ```json) works too
     assert res["ok"] and client.get(f"/api/jobs/{jid}").json()["relay"]["submitted_via"] == "chatgpt-action"
