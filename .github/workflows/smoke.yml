@@ -28,6 +28,7 @@ jobs:
       PRODUCT: ${{ inputs.product_url }}
       UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
     steps:
+      - uses: actions/checkout@v5
       - name: Site loads
         run: |
           BASE="${{ inputs.url }}"; BASE="${BASE%/}"; echo "BASE=$BASE" >> "$GITHUB_ENV"
@@ -86,6 +87,27 @@ jobs:
             [[ "$info" == 200* ]] && log "PASS export $kind -> $info" || { log "FAIL export $kind -> $info"; fail=1; }
           done
           { echo "### ✅ $BASE is live and working"; echo '```json'; cat out/result.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $fail
+
+      - name: ChatGPT / Claude copy-paste flow
+        if: always()
+        run: |
+          log() { echo "$*" | tee -a out/diag.txt; }; fail=0
+          H=(-A "$UA" -c jar -b jar -H "X-Requested-With: scriptwright" -H "Content-Type: application/json")
+          BODY=$(jq -n --arg u "$PRODUCT" '{product_url:$u, engine:"claude", platform:"instagram_reels", duration_sec:30,
+            client_brief:"Launch a 30-second Reel for first-time buyers who want everyday comfort. Drive first purchase."}')
+          ID=$(curl -sS -m 90 "${H[@]}" -X POST "$BASE/api/jobs" -d "$BODY" | jq -r '.id // empty')
+          for i in $(seq 1 30); do S=$(curl -sS -m 60 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID" | jq -r .status); [[ "$S" =~ ^(queued|running)$ ]] || break; sleep 3; done
+          J=$(curl -sS -m 60 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID")
+          P=$(jq -r '.relay.prompt // ""' <<<"$J" | wc -c)
+          [[ "$S" == "awaiting_input" && $P -gt 3000 ]] && log "PASS relay prompt ready ($P chars)" || { log "FAIL relay status=$S prompt=$P $(jq -c '.error' <<<"$J")"; fail=1; }
+          ANSWER=$(jq -n --rawfile a .github/smoke/relay_answer.json '{answer: $a}')
+          code=$(curl -sS -m 90 "${H[@]}" -o out/relay.json -w "%{http_code}" -X POST "$BASE/api/jobs/$ID/relay" -d "$ANSWER")
+          J=$(curl -sS -m 60 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID")
+          log "relay answer -> $code status=$(jq -r .status <<<"$J") title=$(jq -r '.script.title' <<<"$J")"
+          [[ "$code" == 200 ]] || fail=1
+          dx=$(curl -sS -m 90 -A "$UA" -c jar -b jar -o out/relay.docx -w "%{http_code} %{content_type}" "$BASE/api/jobs/$ID/docx")
+          log "relay docx -> $dx"
           exit $fail
 
       - name: Save results to the smoke-results branch
