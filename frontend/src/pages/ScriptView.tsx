@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import { EMPTY, saveDraft } from "../brief";
 import { getDriveToken } from "../google";
 import ConnectSetup, { getGptUrl } from "../components/ConnectSetup";
+import { useJobActions } from "../components/Cards";
 import { ENGINE_NAME, ENGINE_URL, hostOf, Icon, label, Menu, Modal, Monogram, PageSkeleton, Spinner, StatusBadge, timeAgo, useMedia, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Job, JobSummary, StageEvent } from "../types";
@@ -30,6 +31,7 @@ export default function ScriptView() {
   const [modal, setModal] = useState<"approve" | "revise" | "delete" | null>(null);
   const [working, setWorking] = useState("");
   const wide = useMedia("(min-width: 1100px)");
+  const jobActs = useJobActions();
   const [docRef, setDocRef] = useState<{ doc: Document; frame: HTMLIFrameElement } | null>(null);
 
   const load = useCallback(async () => {
@@ -219,7 +221,12 @@ export default function ScriptView() {
             <button className={`btn primary ${job.status === "approved" ? "done" : ""}`} onClick={() => setModal("approve")} disabled={job.status === "approved"}>
               {job.status === "approved" ? <><Icon.check /> Approved</> : "Approve"}</button>
             <Menu trigger={(toggle) => <button className="btn ghost icon" aria-label="More actions" onClick={toggle}><Icon.more /></button>}>
-              {(close) => <button className="danger" onClick={() => { close(); setModal("delete"); }}>Delete script</button>}
+              {(close) => (<>
+                <button onClick={() => { close(); jobActs.editAsNew(job.id); }}>Edit &amp; regenerate<small>Change the brief, write a new version</small></button>
+                <button onClick={() => { close(); jobActs.duplicate(job.id); }}>Duplicate as draft<small>Reuse these inputs later</small></button>
+                <button onClick={() => { close(); navigator.clipboard.writeText(window.location.href).then(() => toast("Link copied.", "ok"), () => toast("Couldn't copy the link.", "error")); }}>Copy link<small>Opens in your workspace</small></button>
+                <button className="danger" onClick={() => { close(); setModal("delete"); }}>Delete script</button>
+              </>)}
             </Menu>
           </div>
         )}

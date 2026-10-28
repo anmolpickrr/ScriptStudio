@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, ReactNode, useEffect, useMemo, useRef, useState
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, clearDraft, composeBrief, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
+import { deleteDraft, getDraft, hasContent, saveNamedDraft } from "../drafts";
 import { ENGINE_NAME, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
 import { useSession } from "../session";
 import { SheetPreview } from "./Home";
@@ -33,7 +34,17 @@ export default function NewScript() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState<string[]>(() => (loc.state as { imported?: string[] } | null)?.imported || []);
+  const navState = (loc.state as { imported?: string[]; draftId?: string; from?: string } | null) || {};
+  const [imported, setImported] = useState<string[]>(() => navState.imported || []);
+  const [draftId, setDraftId] = useState<string | undefined>(navState.draftId);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const draftLabel = draftId ? getDraft(draftId)?.name : "";
+  const saveAsDraft = () => {
+    if (!hasContent(f)) { toast("Add a product link or a few words of brief first.", "error"); return; }
+    const id = saveNamedDraft(f, draftId);
+    setDraftId(id); setSavedAt(new Date());
+    toast(draftId ? "Draft updated." : "Saved to your drafts — find it on the Studio desk.", "ok");
+  };
   useEffect(() => { if (params.size) setParams({}, { replace: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [showCopy, setShowCopy] = useState(() => !!f.product_copy);
   const [moreOpen, setMoreOpen] = useState(() => !!(f.brand_name || f.target_audience || f.key_usps.length || f.offer || f.tone ||
@@ -92,6 +103,7 @@ export default function NewScript() {
       const body = buildJobBody(f);
       const job = await api.post<JobSummary>("/api/jobs", body);
       clearDraft();
+      if (draftId) deleteDraft(draftId);  // the draft became a script
       nav(`/scripts/${job.id}`);
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
   };
@@ -104,12 +116,16 @@ export default function NewScript() {
       <div className="page-head">
         <div className="grow">
           <div className="eyebrow"><Icon.spark /> Creative brief → script sheet</div>
-          <h1 className="display-sm">New script</h1>
-          <p>Two things are required: the product link and the client's brief. You get back a ready-to-shoot script.</p>
+          <h1 className="display-sm">{draftId ? "Edit draft" : navState.from ? "Edit & regenerate" : "New script"}</h1>
+          <p>{draftId ? <>Continuing <b>{draftLabel}</b>. Save changes any time, or write the script when it's ready.</>
+            : navState.from ? "These are the inputs of the script you picked. Change anything, then write a fresh version — the original stays as it is."
+              : "Two things are required: the product link and the client's brief. You get back a ready-to-shoot script."}</p>
         </div>
         <div className="row">
           <input ref={fileRef} type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={importBrief} />
-          <button type="button" className="btn ghost" onClick={() => { setF(EMPTY); setTouched({}); setImported([]); }}>Reset</button>
+          <span className="autosave" title="Your work is autosaved in this browser"><span className="pulse-dot" /> Autosaved{savedAt ? ` · draft saved ${savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>
+          <button type="button" className="btn ghost" onClick={() => { if (hasContent(f) && !window.confirm("Clear the form? Saved drafts are not affected.")) return; setF(EMPTY); setTouched({}); setImported([]); setDraftId(undefined); }}>Clear</button>
+          <button type="button" className="btn secondary" onClick={saveAsDraft}><Icon.save /> {draftId ? "Save draft" : "Save as draft"}</button>
         </div>
       </div>
       {imported.length > 0 && (
@@ -299,6 +315,7 @@ export default function NewScript() {
               <li className={f.cta ? "ok" : ""}><span className="tick">✓</span>CTA <em>optional</em></li>
             </ul>
             <button className="btn primary lg block" disabled={busy}>{busy ? <Spinner /> : <Icon.spark />}{busy ? "Starting…" : cta}</button>
+            <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={saveAsDraft}><Icon.save /> {draftId ? "Save draft" : "Save as draft"}</button>
             <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 3–6 minutes, you can leave the page.` : `Next: one prompt for ${ENGINE_NAME[f.engine]}.`}</p>
           </div>
         </aside>
@@ -306,6 +323,7 @@ export default function NewScript() {
 
       <div className="mobile-cta">
         <div className="grow">{ready ? `${ENGINE_NAME[f.engine]} · ${plat?.label} · ${f.duration_sec}s` : "Add a product link and brief to continue"}</div>
+        <button type="button" className="icon-btn lg" aria-label="Save as draft" title="Save as draft" onClick={saveAsDraft}><Icon.save /></button>
         <button className="btn primary" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : f.engine === "auto" ? "Generate" : "Prepare prompt"}</button>
       </div>
     </form>

@@ -7,24 +7,29 @@ export const ENGINE_NAME: Record<Engine, string> = { auto: "ScriptStudio AI", ch
 export const ENGINE_URL: Record<Engine, string> = { auto: "", chatgpt: "https://chatgpt.com/", claude: "https://claude.ai/new" };
 
 // ---------------------------------------------------------------- toasts
-type Toast = { id: number; kind: "info" | "error" | "ok"; text: string };
-const ToastCtx = createContext<(text: string, kind?: Toast["kind"]) => void>(() => {});
+type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; kind: "info" | "error" | "ok"; text: string; action?: ToastAction };
+const ToastCtx = createContext<(text: string, kind?: Toast["kind"], action?: ToastAction) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
-  const push = useCallback((text: string, kind: Toast["kind"] = "info") => {
+  const drop = useCallback((id: number) => setItems((xs) => xs.filter((x) => x.id !== id)), []);
+  const push = useCallback((text: string, kind: Toast["kind"] = "info", action?: ToastAction) => {
     const id = Date.now() + Math.random();
-    setItems((xs) => [...xs.slice(-3), { id, kind, text }]);
-    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), kind === "error" ? 7000 : 4000);
-  }, []);
+    setItems((xs) => [...xs.slice(-3), { id, kind, text, action }]);
+    setTimeout(() => drop(id), action ? 6000 : kind === "error" ? 7000 : 4000);
+  }, [drop]);
   return (
     <ToastCtx.Provider value={push}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
         {items.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`}>
-            <span className="toast-ic" aria-hidden="true">{t.kind === "ok" ? "✓" : t.kind === "error" ? "!" : "i"}</span>{t.text}
+          <div key={t.id} className={`toast ${t.kind} ${t.action ? "has-action" : ""}`}>
+            <span className="toast-ic" aria-hidden="true">{t.kind === "ok" ? "✓" : t.kind === "error" ? "!" : "i"}</span>
+            <span className="grow">{t.text}</span>
+            {t.action && <button className="toast-action" onClick={() => { t.action!.onClick(); drop(t.id); }}>{t.action.label}</button>}
+            {t.action && <i className="toast-timer" aria-hidden="true" />}
           </div>
         ))}
       </div>
@@ -193,6 +198,9 @@ export const Icon = {
   film: () => <svg viewBox="0 0 24 24" {...P}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" /></svg>,
   flag: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M5 21V4h11l-1.5 4L16 12H5" /></svg>,
   user: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>,
+  save: () => <svg viewBox="0 0 24 24" {...P} width="17" height="17"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" /><path d="M8 3v5h7V3M8 21v-7h8v7" /></svg>,
+  trash: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>,
+  edit: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>,
   arrow: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" /></svg>,
   down: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="m6 9 6 6 6-6" /></svg>,
 };
@@ -228,3 +236,22 @@ export function Monogram({ text, size = 34 }: { text: string; size?: number }) {
 
 export const Kbd = ({ children }: { children: ReactNode }) => <kbd className="kbd">{children}</kbd>;
 export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+// ---------------------------------------------------------------- India time
+const IST = "Asia/Kolkata";
+export function istHour(d = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: IST }).format(d));
+}
+export function greetingIST(d = new Date()): string {
+  const h = istHour(d);
+  return h >= 5 && h < 12 ? "Good morning" : h >= 12 && h < 17 ? "Good afternoon" : "Good evening";
+}
+export function istStamp(d = new Date()): string {
+  return new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: IST }).format(d) + " IST";
+}
+/** Re-renders every minute, so time-based text (greeting, "x min ago") stays current. */
+export function useMinute(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 30_000); return () => clearInterval(t); }, []);
+  return now;
+}

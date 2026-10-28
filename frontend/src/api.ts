@@ -17,7 +17,7 @@ function setToken(t: string) {
 }
 export const clearSession = () => setToken("");
 
-async function send(method: string, path: string, body?: unknown, timeoutMs = 90_000): Promise<Response> {
+async function send(method: string, path: string, body?: unknown, timeoutMs = 90_000, keepalive = false): Promise<Response> {
   const token = getToken();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -26,6 +26,7 @@ async function send(method: string, path: string, body?: unknown, timeoutMs = 90
       method,
       credentials: API_BASE ? "omit" : "same-origin",
       signal: ctrl.signal,
+      keepalive,
       headers: {
         "X-Requested-With": "scriptwright", // required by the API's CSRF guard
         ...(token ? { "X-Session-Token": token } : {}),
@@ -43,8 +44,8 @@ async function send(method: string, path: string, body?: unknown, timeoutMs = 90
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
-  const res = await send(method, path, body, timeoutMs);
+async function request<T>(method: string, path: string, body?: unknown, timeoutMs?: number, keepalive?: boolean): Promise<T> {
+  const res = await send(method, path, body, timeoutMs, keepalive);
   const text = await res.text();
   let data: unknown = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
@@ -61,7 +62,7 @@ export const api = {
   get: <T>(path: string, timeoutMs?: number) => request<T>("GET", path, undefined, timeoutMs),
   post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
   put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
-  del: <T>(path: string) => request<T>("DELETE", path),
+  del: <T>(path: string, keepalive = false) => request<T>("DELETE", path, undefined, undefined, keepalive),
   /** Raw text (e.g. the rendered script preview). */
   text: async (path: string) => {
     const res = await send("GET", path);
