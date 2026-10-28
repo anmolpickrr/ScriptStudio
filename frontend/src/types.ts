@@ -63,7 +63,7 @@ export interface Job {
   concepts: Concept[]; concept_decision: ConceptDecision | null;
   script: { title: string; logline: string; scenes: { number: number; label: string; start_sec: number; end_sec: number; visual: string }[] } | null;
   qc_history: QCReport[]; doc_url: string | null; format_version: string; revisions: Revision[]; error: string;
-  relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string } | null;
+  relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string; code: string; submitted_via: string } | null;
 }
 
 export interface JobSummary {

@@ -101,6 +101,8 @@ def get_job(job_id: str, user: User = Depends(current_user)):
         data["dossier"].pop("source_excerpt", None)  # large and only needed server-side
     if data.get("relay"):
         data["relay"].pop("source_text", None)
+        data["relay"].pop("token", None)
+        data["relay"]["code"] = relay.handoff_code(job)
     return data
 
 

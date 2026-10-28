@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .config import settings
-from .routes import jobs, system
+from .routes import connect as connect_routes, jobs, system
 from .store import StoreUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -92,6 +92,7 @@ if settings.cors_origins:
 
 app.include_router(system.router)
 app.include_router(jobs.router)
+app.include_router(connect_routes.router)
 
 # ---------------------------------------------------------------- frontend (SPA)
 STATIC = Path(settings.static_dir)
@@ -101,7 +102,7 @@ if not STATIC.is_absolute():
 
 @app.get("/{path:path}", include_in_schema=False)
 def spa(path: str):
-    if path.startswith(("api/", "tasks/")):
+    if path.startswith(("api/", "tasks/", "mcp", "connect/", ".well-known/")):
         raise HTTPException(404, "Not found")
     if not (STATIC / "index.html").exists():
         return JSONResponse({"detail": "Frontend not built. Run `npm run build` in frontend/."}, status_code=503)

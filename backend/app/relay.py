@@ -10,6 +10,7 @@ and the script is rendered in the house format. Revisions produce a follow-up pr
 from __future__ import annotations
 
 import json
+import secrets
 from typing import Optional
 
 from pydantic import BaseModel, ValidationError
@@ -186,7 +187,8 @@ def prepare(job: Job, spec: FormatSpec, page: Optional[PageSource] = None) -> Jo
                                           job.inputs.product_image_urls)
     job.flags = flags
     job.dossier, job.brief, job.concepts, job.concept_decision, job.script, job.qc_history = None, None, [], None, None, []
-    job.relay = RelayState(kind="full", prompt=build_full_prompt(job, spec, text), source_text=text)
+    job.relay = RelayState(kind="full", prompt=build_full_prompt(job, spec, text), source_text=text,
+                           token=secrets.token_hex(4))
     job.status = JobStatus.awaiting_input
     job.events.append(StageEvent(stage="relay", status="started",
                                  detail=f"Prompt ready for {ENGINE_LABEL.get(job.inputs.engine, 'your chat')}"))
@@ -199,7 +201,8 @@ def start_revision(job: Job, spec: FormatSpec, request: str, by: str = "", kind:
     job.revisions.append(Revision(by=by, kind=kind, detail=request))  # type: ignore[arg-type]
     source = job.relay.source_text if job.relay else (job.dossier.source_excerpt if job.dossier else "")
     rnd = (job.relay.round + 1) if job.relay else 2
-    job.relay = RelayState(kind="revise", round=rnd, prompt=build_revision_prompt(job, spec, request), source_text=source)
+    job.relay = RelayState(kind="revise", round=rnd, prompt=build_revision_prompt(job, spec, request), source_text=source,
+                           token=secrets.token_hex(4))
     job.status = JobStatus.awaiting_input
     job.error = ""
     job.events.append(StageEvent(stage="relay", status="started", detail=f"Revision prompt ready (round {rnd})"))
@@ -267,3 +270,8 @@ def apply_answer(job: Job, spec: FormatSpec, text: str) -> Job:
     job.relay.last_error = ""
     job.events.append(StageEvent(stage="relay", status="done", detail=f"Answer from {who} checked"))
     return job
+
+
+def handoff_code(job: Job) -> str:
+    """What the user's Claude / ChatGPT needs to fetch and submit this job: the id plus a per-round secret."""
+    return f"SS-{job.id}-{job.relay.token}" if job.relay and job.relay.token else ""

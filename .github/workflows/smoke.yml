@@ -70,6 +70,20 @@ jobs:
           [[ -n "$tok" ]] && log "PASS API issues header session" || { log "FAIL API issues no header session"; fail=1; }
           exit $fail
 
+      - name: Claude connector and ChatGPT Action respond
+        if: always()
+        run: |
+          log() { echo "$*" | tee -a out/diag.txt; }; fail=0
+          init=$(curl -sS -m 60 -X POST "$BASE/mcp" -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke"}}}')
+          echo "$init" | grep -q '"ScriptStudio"' && log "PASS mcp initialize" || { log "FAIL mcp initialize: ${init:0:200}"; fail=1; }
+          tools=$(curl -sS -m 60 -X POST "$BASE/mcp" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')
+          echo "$tools" | grep -q submit_script && log "PASS mcp tools/list" || { log "FAIL mcp tools/list: ${tools:0:200}"; fail=1; }
+          code=$(curl -sS -m 60 -o /dev/null -w "%{http_code}" "$BASE/.well-known/oauth-protected-resource")
+          [[ "$code" == 404 ]] && log "PASS no OAuth required (404)" || { log "FAIL oauth discovery -> $code"; fail=1; }
+          curl -sS -m 60 "$BASE/connect/openapi.json" | grep -q submitScript && log "PASS GPT action schema" || { log "FAIL GPT action schema"; fail=1; }
+          exit $fail
+
       - name: Generate a script from a real product page
         if: ${{ inputs.generate }}
         run: |

@@ -73,6 +73,8 @@ class Settings:
     # other sites allowed to call the API from the browser (the GitHub Pages copy of the frontend)
     cors_origins: list = field(default_factory=lambda: [o.strip().rstrip("/") for o in
                                _env("CORS_ORIGINS", "https://anmolpickrr.github.io").split(",") if o.strip()])
+    # where people open the app (links returned to Claude / ChatGPT point here)
+    app_url: str = field(default_factory=lambda: _env("APP_URL", "https://anmolpickrr.github.io/ScriptStudio").rstrip("/"))
     public_base_url: str = field(default_factory=lambda: _env("PUBLIC_BASE_URL"))  # https://scriptwright-xyz.a.run.app
 
     # ---- AI

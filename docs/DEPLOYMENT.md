@@ -110,3 +110,16 @@ For one-click export straight into Google Docs, you need a free Google OAuth cli
    Name: `RENDER_DEPLOY_HOOK`, Secret: paste the link, **Add secret**.
 
 Keep the hook private: anyone with it can trigger a deploy (if it leaks, click **Regenerate hook** in Render and update the secret).
+
+## Write with your own Claude or ChatGPT plan (no copy-paste)
+
+ScriptStudio exposes two small integrations; both use only a per-job code (shown on the script page) as the key.
+
+- **Claude** — a custom connector (remote MCP server) at `https://<api>/mcp` with two tools, `get_script_job` and
+  `submit_script`. claude.ai → Settings → Connectors → Add custom connector → name `ScriptStudio`, paste the URL.
+- **ChatGPT** — a custom GPT with an Action imported from `https://<api>/connect/openapi.json` (authentication: None).
+  Paste the instructions shown in ScriptStudio (account menu → Connect Claude / ChatGPT), then save the GPT's link there.
+
+On a script written "with Claude/ChatGPT", **Send to Claude/ChatGPT** opens the chat with the request typed in; press
+Enter, and the script page updates by itself when the chat submits. `APP_URL` sets the link returned to the chat
+(default: the GitHub Pages site).

@@ -3,6 +3,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-d
 import { SessionProvider, useSession } from "./session";
 import { BrandMark, ErrorBoundary, Icon, isMac, Kbd, Menu, PageSkeleton } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
+import ConnectSetup from "./components/ConnectSetup";
 import SignIn from "./pages/SignIn";
 import Home from "./pages/Home";
 import NewScript from "./pages/NewScript";
@@ -38,6 +39,7 @@ const NAV = [
 function Shell() {
   const { user, config, options, signOut } = useSession();
   const [palette, setPalette] = useState(false);
+  const [connect, setConnect] = useState(false);
   const loc = useLocation();
   const nav = useNavigate();
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
@@ -76,6 +78,7 @@ function Shell() {
               <div className="menu-head"><b>{who}</b><small>{user!.admin ? "Admin" : user!.guest ? "Saved in this browser" : user!.email}</small></div>
               <button onClick={() => { close(); setPalette(true); }}>Search & jump<small>{isMac ? "⌘" : "Ctrl"} K anywhere</small></button>
               <button onClick={() => { close(); nav("/new"); }}>New script<small>Press N anywhere</small></button>
+              <button onClick={() => { close(); setConnect(true); }}>Connect Claude / ChatGPT<small>Write with your own plan, no copy-paste</small></button>
               {config.auth_mode === "google" && <button onClick={() => { close(); signOut(); }}>Sign out</button>}
             </>)}
           </Menu>
@@ -109,6 +112,7 @@ function Shell() {
       </nav>
 
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      {connect && <ConnectSetup onClose={() => setConnect(false)} />}
     </div>
   );
 }

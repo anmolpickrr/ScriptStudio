@@ -323,6 +323,8 @@ class RelayState(BaseModel):
     source_text: str = ""      # what product facts are verified against
     created_at: str = Field(default_factory=utcnow)
     last_error: str = ""
+    token: str = ""            # secret half of the handoff code Claude / ChatGPT use to fetch and submit this job
+    submitted_via: str = ""    # "claude-connector", "chatgpt-action" or "" (pasted)
 
 
 class Job(BaseModel):
