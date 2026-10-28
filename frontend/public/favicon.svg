@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1f3a5f"/><path d="M9 10h14M9 16h10M9 22h12" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<style>rect{fill:#111114}@media (prefers-color-scheme:dark){rect{fill:#ffffff}}</style>
+<rect x="195" y="150" width="277" height="76" rx="38"/>
+<rect x="40" y="266" width="312" height="76" rx="38"/>
+</svg>

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Component, createContext, ErrorInfo, KeyboardEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Engine, JobStatus } from "../types";
+import logoUrl from "../assets/logo.svg";
 
 export const ENGINE_NAME: Record<Engine, string> = { auto: "ScriptStudio AI", chatgpt: "ChatGPT", claude: "Claude" };
 export const ENGINE_URL: Record<Engine, string> = { auto: "", chatgpt: "https://chatgpt.com/", claude: "https://claude.ai/new" };
@@ -116,9 +117,8 @@ export function Skeleton({ h = 16, w = "100%", style }: { h?: number; w?: number
 
 export function BrandMark({ small }: { small?: boolean }) {
   return (
-    <Link className="brand" to="/" aria-label="ScriptStudio by Fastrr">
-      <span className="mark" aria-hidden="true"><i /><i /></span>
-      <span className="word">ScriptStudio{!small && <small>by Fastrr</small>}</span>
+    <Link className={`brand ${small ? "small" : ""}`} to="/" aria-label="ScriptStudio by fastrr — home">
+      <img src={logoUrl} alt="ScriptStudio by fastrr" />
     </Link>
   );
 }

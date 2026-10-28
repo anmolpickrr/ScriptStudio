@@ -44,18 +44,11 @@ svg.icon { width: 18px; height: 18px; flex: none; }
 .shell { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100%; }
 .canvas { background: var(--dots), var(--bg-0); min-height: 100vh; }
 .side { background: var(--bg-0); border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; z-index: 40; }
-.brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px 24px; color: var(--text); text-decoration: none !important; }
-.brand .mark { display: grid; gap: 5px; width: 26px; }
-.brand .mark i { display: block; height: 6px; border-radius: 6px; background: var(--brand-gradient); transform-origin: left; animation: bar-in .7s cubic-bezier(.2, .8, .2, 1) both; }
-.brand .mark i:nth-child(1) { width: 70%; margin-left: 30%; animation-delay: .05s; }
-.brand .mark i:nth-child(2) { width: 100%; animation-delay: .15s; }
-.brand:hover .mark i { animation: bar-glide 1.2s ease-in-out infinite; }
-.brand:hover .mark i:nth-child(2) { animation-delay: .12s; }
-.brand .word { font: 700 19px/1 var(--font-display); letter-spacing: -.3px; animation: word-in .7s cubic-bezier(.2, .8, .2, 1) .2s both; }
-.brand .word small { display: block; font: 500 10.5px var(--font); color: var(--text-3); letter-spacing: .4px; margin-top: 4px; }
-@keyframes bar-in { from { transform: scaleX(0); opacity: 0; } to { transform: none; opacity: 1; } }
+.brand { display: flex; align-items: center; padding: 0 8px 22px; text-decoration: none !important; }
+.brand img { display: block; width: 172px; height: auto; animation: word-in .6s cubic-bezier(.2, .8, .2, 1) both; transition: opacity .15s; }
+.brand:hover img { opacity: .85; }
+.brand.small img { width: 128px; }
 @keyframes word-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
-@keyframes bar-glide { 0%, 100% { transform: none; } 50% { transform: translateX(6px) scaleX(.82); } }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: var(--r-sm); color: var(--text-2); font-weight: 500; transition: background .15s, color .15s; }
 .nav a:hover { background: var(--bg-2); color: var(--text); text-decoration: none; }
@@ -86,7 +79,7 @@ main.content { padding: 36px 44px 90px; max-width: 1240px; width: 100%; min-widt
   .side.open { transform: none; }
   .scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); z-index: 39; backdrop-filter: blur(2px); }
   .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(5, 5, 5, .9); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 30; backdrop-filter: blur(10px); }
-  .topbar .brand { padding: 0; } .topbar .brand .word small { display: none; } .topbar .grow { flex: 1; }
+  .topbar .brand { padding: 0; } .topbar .grow { flex: 1; }
   main.content { padding: 22px 16px 120px; }
   h1 { font-size: 23px; }
 }
