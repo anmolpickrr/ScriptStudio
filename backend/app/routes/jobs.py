@@ -121,7 +121,8 @@ def _html(job: Job, include_qc: bool, responsive: bool = False) -> str:
 
 
 def _filename(job: Job) -> str:
-    return re.sub(r"[^\w-]+", "-", job.script.title if job.script else "script").strip("-")[:60] or "script"
+    from ..render.document import file_name
+    return re.sub(r"[^\w.-]+", "-", file_name(job)).strip("-")[:120] if job.script else "script"
 
 
 @router.get("/{job_id}/preview", response_class=HTMLResponse)
@@ -157,9 +158,7 @@ def export(job_id: str, req: ExportRequest, user: User = Depends(current_user)):
     if settings.auth_mode != "none" and not req.access_token:
         raise HTTPException(400, "Google Drive permission is needed to create the Doc.")
     spec = get_store().get_format(job.inputs.format_id)
-    brand = job.dossier.brand if job.dossier else (job.inputs.brand_name or "")
-    title = " – ".join(x for x in [brand, job.script.title if job.script else "Script"] if x)
-    title += f" ({playbook.platform(job.inputs.platform)['label']}, {job.inputs.duration_sec}s)"
+    title = _filename(job)
     try:
         job.doc_url = export_to_google_doc(title, _html(job, req.include_qc), spec, user_token=req.access_token)
     except Exception as e:

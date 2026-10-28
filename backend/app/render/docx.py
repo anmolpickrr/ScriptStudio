@@ -124,14 +124,22 @@ def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
     sh = doc.build_sheet(job, spec)
     st = spec.style
 
+    def text(p, v: str):  # product mentions link to the product page
+        for t, u in doc.link_spans(v, sh.product_names, sh.product_url):
+            out.link(p, u, t) if u else out.run(p, t)
+
     def line(k: str, v: str, indent: bool = False, before: int = 0):
         p = out.para(before=before, after=3)
         if indent:
             p.paragraph_format.left_indent = Inches(0.2)
         out.run(p, f"{k}: ", bold=True)
-        out.run(p, v)
+        out.link(p, v, v) if k == "Product Link" else text(p, v)
 
-    out.para(sh.title, bold=True, size=st.h1_pt, color=st.title_hex, after=8)
+    p = out.para(after=12)
+    out.run(p, "File name: ", size=st.body_pt + 1, color="#666666")
+    out.run(p, sh.file_name, bold=True, size=st.body_pt + 1)
+    out.para(sh.title, bold=True, size=st.h1_pt, color=st.title_hex, after=2)
+    out.para(f"BRAND: {sh.brand}", bold=True, size=st.h2_pt, after=10)
     for k, v in sh.header:
         line(k, v)
     out.para("Continuity (same in every scene)", bold=True, before=12, after=3)
@@ -139,7 +147,7 @@ def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
         p = out.d.add_paragraph(style="List Bullet")
         if k:
             out.run(p, f"{k}: ", bold=True)
-        out.run(p, v)
+        text(p, v)
     line("Disclaimer", sh.disclaimer, before=16)
     for sc in sh.scenes:
         out.para(sc.heading, bold=True, before=12, after=3)
@@ -147,6 +155,13 @@ def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
             line(k, v, indent=True)
     if sh.small_line:
         line("Small line", doc._quoted(sh.small_line), before=12)
+    if sh.client_brief:  # the original brief, on its own page, for reference
+        out.d.add_page_break()
+        out.para("CLIENT BRIEF (REFERENCE)", bold=True, size=st.h1_pt, color=st.title_hex, after=4)
+        out.para("The brief as received, kept for reference. The script above is the deliverable.",
+                 size=st.body_pt - 1, color="#666666", after=10)
+        for par in sh.client_brief.splitlines():
+            out.para(par, after=3)
 
 
 def render_script_docx(job: Job, spec: FormatSpec) -> bytes:

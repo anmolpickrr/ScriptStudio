@@ -99,18 +99,37 @@ def _sheet_html(job: Job, spec: FormatSpec, st: _Styles) -> list[str]:
     sh = doc.build_sheet(job, spec)
     f = f"font-family:{spec.style.font_family},Helvetica,sans-serif;font-size:{spec.style.body_pt}pt;line-height:1.35;"
     p = f"{f}margin:0 0 3pt 0;"
-    line = lambda k, v: f"<p style='{p}'><b>{_e(k)}:</b> {_e(v)}</p>"  # noqa: E731
-    out = [f"<h1 style='{st.title}margin-top:0;'>{_e(sh.title)}</h1>"]
+
+    def text(v: str) -> str:  # product mentions link to the product page
+        return "".join(f"<a href='{_e(u)}'>{_e(t)}</a>" if u else _e(t)
+                       for t, u in doc.link_spans(v, sh.product_names, sh.product_url))
+
+    def line(k: str, v: str) -> str:
+        val = f"<a href='{_e(v)}'>{_e(v)}</a>" if k == "Product Link" else text(v)
+        return f"<p style='{p}'><b>{_e(k)}:</b> {val}</p>"
+
+    out = [f"<p style='{f}font-size:{spec.style.body_pt + 1}pt;margin:0 0 12pt 0;padding-bottom:6pt;"
+           f"border-bottom:1px solid {spec.style.rule_hex};'><span style='color:#666666;'>File name:</span> "
+           f"<b>{_e(sh.file_name)}</b></p>",
+           f"<h1 style='{st.title}margin-top:0;margin-bottom:2pt;'>{_e(sh.title)}</h1>",
+           f"<p style='{st.brand}margin-bottom:10pt;'>BRAND: {_e(sh.brand)}</p>"]
     out += [line(k, v) for k, v in sh.header]
     out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>Continuity (same in every scene)</p>")
-    lis = "".join(f"<li style='{st.li}'>" + (f"<b>{_e(k)}:</b> " if k else "") + f"{_e(v)}</li>" for k, v in sh.continuity)
+    lis = "".join(f"<li style='{st.li}'>" + (f"<b>{_e(k)}:</b> " if k else "") + f"{text(v)}</li>" for k, v in sh.continuity)
     out.append(f"<ul style='{st.ul}'>{lis}</ul>")
     out.append(f"<p style='{f}margin:16pt 0 16pt 0;'><b>Disclaimer:</b> {_e(sh.disclaimer)}</p>")
     for sc in sh.scenes:
         out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>{_e(sc.heading)}</p>")
-        out.append(f"<div style='margin-left:14pt;'>" + "".join(line(k, v) for k, v in sc.lines) + "</div>")
+        out.append("<div style='margin-left:14pt;'>" + "".join(line(k, v) for k, v in sc.lines) + "</div>")
     if sh.small_line:
         out.append(f"<p style='{f}margin:12pt 0 0 0;'><b>Small line:</b> {_e(doc._quoted(sh.small_line))}</p>")
+    if sh.client_brief:  # the original brief, on its own page, for reference
+        out.append(f"<hr style='{st.rule}margin-top:40pt;page-break-before:always;break-before:page;'>")
+        out.append(f"<h1 style='{st.title}'>CLIENT BRIEF (REFERENCE)</h1>")
+        out.append(f"<p style='{st.note}margin-bottom:10pt;'>The brief as received, kept for reference. "
+                   "The script above is the deliverable.</p>")
+        out += [f"<p style='{p}'>{_e(par)}</p>" if par.strip() else f"<p style='{p}'>&nbsp;</p>"
+                for par in sh.client_brief.splitlines()]
     return out
 
 
@@ -129,6 +148,6 @@ def render_script_html(job: Job, spec: FormatSpec, include_qc: bool = True, resp
             parts.append(f"<h3 style='{st.h}'>{sec.number}. {_e(sec.title)}</h3>{_blocks(sec.blocks, st)}"
                          f"<hr style='{st.rule}'>")
     head = "<meta name='viewport' content='width=device-width, initial-scale=1'>" + RESPONSIVE_CSS if responsive else ""
-    title = _e(job.script.title if job.script else "Script")
+    title = _e(doc.file_name(job) if job.script else "Script")
     return (f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>{head}</head>"
             f"<body style='{st.body}'>" + "".join(parts) + "</body></html>")

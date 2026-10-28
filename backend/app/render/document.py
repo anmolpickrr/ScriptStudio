@@ -223,6 +223,11 @@ class SheetScene:
 
 @dataclass
 class Sheet:
+    file_name: str
+    brand: str
+    product_url: str
+    product_names: list[str]            # mentions of these are linked to product_url
+    client_brief: str
     title: str
     header: list[tuple[str, str]]       # Model, Language, Image Source, Subtitle, Product, CTA, Idea
     continuity: list[tuple[str, str]]   # ("Wife", "About 34, ..."); label may be "" for free-form items
@@ -241,6 +246,62 @@ def _split_label(text: str) -> tuple[str, str]:
 def _quoted(line: str) -> str:
     line = line.strip()
     return line if line[:1] in "\"“'‘" else f"“{line}”"
+
+
+PLATFORM_SHORT = {"instagram_reels": "IGReels", "tiktok": "TikTok", "youtube_shorts": "YTShorts", "youtube": "YouTube",
+                  "meta_feed": "MetaFeed", "tv": "TV"}
+
+
+def _camel(text: str, max_words: int = 4) -> str:
+    words = re.findall(r"[A-Za-z0-9]+", text.replace("'", ""))[:max_words]
+    return "".join(w if any(c.isupper() for c in w[1:]) else w[:1].upper() + w[1:].lower() for w in words)
+
+
+def brand_of(job: Job) -> str:
+    d, i = job.dossier, job.inputs
+    if i.brand_name:
+        return i.brand_name.strip()
+    if d and d.brand:
+        return d.brand.strip()
+    host = re.sub(r"^www\.", "", re.sub(r"^https?://", "", i.product_url)).split("/")[0]
+    return host.split(".")[0].capitalize()
+
+
+def product_name(job: Job) -> str:
+    """The product's short name: the page title without the brand, colour or variant suffix."""
+    d, s = job.dossier, job.script
+    name = (d.name if d and d.name else "") or (s.product_line if s else "")
+    name = re.split(r"\s+[-–—|(\[]\s*|\s*[(\[]", name, maxsplit=1)[0].strip()
+    brand = brand_of(job)
+    if brand and name.lower().startswith(brand.lower() + " "):
+        name = name[len(brand) + 1:]
+    return name
+
+
+def file_name(job: Job) -> str:
+    """Brand_Product_Platform_Duration_Date_vN, e.g. Kleenest_StrideComfortCushion_IGReels_30s_2026-10-28_v1."""
+    i = job.inputs
+    parts = [_camel(brand_of(job), 3) or "Brand", _camel(product_name(job)) or "Product",
+             PLATFORM_SHORT.get(i.platform, _camel(i.platform)), f"{i.duration_sec}s", job.created_at[:10],
+             f"v{1 + len(job.revisions)}"]
+    return "_".join(p for p in parts if p)
+
+
+def link_spans(text: str, names: list[str], url: str) -> list[tuple[str, str]]:
+    """Splits text into (piece, link) pairs, linking every mention of the product to its page."""
+    names = sorted({n for n in names if len(n) >= 4}, key=len, reverse=True)
+    if not url or not names or not text:
+        return [(text, "")]
+    pat = re.compile("|".join(re.escape(n) for n in names), re.I)
+    out, pos = [], 0
+    for m in pat.finditer(text):
+        if m.start() > pos:
+            out.append((text[pos:m.start()], ""))
+        out.append((m.group(0), url))
+        pos = m.end()
+    if pos < len(text):
+        out.append((text[pos:], ""))
+    return out
 
 
 def _button(text: str) -> str:
@@ -266,7 +327,8 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
     header = [("Model", model), ("Language", i.language), ("Image Source", i.image_source or "Web"),
               ("Subtitle", "Yes" if i.subtitles else "No"),
               ("Format", f"{plat['label']} · {i.duration_sec}s · {i.aspect_ratio or plat['aspect']}"),
-              ("Product", product), ("CTA", cta), ("Idea", s.idea or s.concept_summary or s.logline)]
+              ("Product", product), ("Product Link", i.product_url), ("CTA", cta),
+              ("Idea", s.idea or s.concept_summary or s.logline)]
 
     continuity = [_split_label(c) for c in s.continuity if c.strip()]
     labels = {lbl.lower() for lbl, _ in continuity}
@@ -293,4 +355,7 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
         label = sc.label.strip() or ("Hook" if sc.number == 1 else "CTA" if sc is s.scenes[-1] else "")
         scenes.append(SheetScene(f"Scene {sc.number}" + (f" ({label})" if label else ""), lines))
 
-    return Sheet("SCRIPT", [(k, v) for k, v in header if v], continuity, spec.disclaimer, scenes, s.small_print.strip())
+    short = product_name(job)
+    names = [n for n in (short, d.name if d else "", re.split(r"\s*[(\[]", s.product_line)[0].strip()) if n]
+    return Sheet(file_name(job), brand_of(job), i.product_url, names, i.client_brief.strip(),
+                 "SCRIPT", [(k, v) for k, v in header if v], continuity, spec.disclaimer, scenes, s.small_print.strip())

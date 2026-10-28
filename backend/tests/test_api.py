@@ -202,10 +202,18 @@ def test_docx_default_is_the_script_sheet(client):
                       headers=H).json()["id"]
     d = Document(io.BytesIO(client.get(f"/api/jobs/{jid}/docx").content))
     text = [p.text for p in d.paragraphs]
-    assert text[0] == "SCRIPT" and "Language: Hinglish" in text and "Subtitle: No" in text and "CTA: Shop Now" in text
+    assert text[0].startswith("File name: Brewly_") and text[0].endswith("_IGReels_15s_" + text[0][-13:-3] + "_v1")
+    assert text[1] == "SCRIPT" and text[2] == "BRAND: Brewly" and "Language: Hinglish" in text and "Subtitle: No" in text and "CTA: Shop Now" in text
     assert "Continuity (same in every scene)" in text and any(t.startswith("Disclaimer: Visuals described") for t in text)
     assert any(t.startswith("Scene 1") for t in text) and any(t.startswith("Visual: ") for t in text)
-    assert d.paragraphs[1].runs[0].bold  # "Model:" label is bold
+    assert d.paragraphs[3].runs[0].bold  # "Model:" label is bold
+    assert any(t.startswith("Product Link: https://brewly.in/products/morning-brew") for t in text)
+    links = [h for h in d.element.body.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink")]
+    assert len(links) >= 2  # the product link line and at least one product mention
+    i = text.index("CLIENT BRIEF (REFERENCE)")  # original brief on its own page at the end
+    assert i > max(n for n, t in enumerate(text) if t.startswith("Scene ")) and BODY["client_brief"] in text[i + 2:]
+    r = client.get(f"/api/jobs/{jid}/docx")
+    assert 'filename="Brewly_' in r.headers["content-disposition"]
 
 
 def test_preview_is_responsive(client):
