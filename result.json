@@ -1,0 +1,21 @@
+{
+  "status": "needs_review",
+  "error": "",
+  "title": "The Honest Review",
+  "scenes": 6,
+  "facts_verified": 16,
+  "flags": [
+    "Assumed: No specific product facts provided - focused on general everyday comfort and the first purchase objective."
+  ],
+  "qc": {
+    "story_logic": 4,
+    "authenticity": 5,
+    "cta_relevance": 5,
+    "hook_strength": 4,
+    "visual_vo_sync": 5,
+    "brief_alignment": 5,
+    "dialogue_quality": 4,
+    "product_integration": 5
+  },
+  "passed": false
+}

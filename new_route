@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
+    <title>ScriptStudio</title>
+    <style>
+      /* shown until the app starts (same as the in-app loading screen and Capstudio's) */
+      html, body { margin: 0; height: 100%; background: #050505; }
+      .boot { position: fixed; inset: 0; display: grid; place-items: center;
+        background: radial-gradient(520px 360px at 50% 42%, rgba(96, 55, 215, .22), transparent 70%),
+                    radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1.2px) 0 0 / 22px 22px, #050505; }
+      .boot div { display: grid; justify-items: center; gap: 22px; padding: 24px; }
+      .boot img { width: 180px; height: auto; }
+      .boot b { display: block; width: 220px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+      .boot b i { display: block; width: 35%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6037d7, #a08bff); animation: boot 1.3s ease-in-out infinite; }
+      @keyframes boot { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+      @media (prefers-reduced-motion: reduce) { .boot b i { animation: none; width: 100%; } }
+    </style>
+    <script type="module" crossorigin src="/assets/index-CSNaJkEi.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D9S38Fvb.css">
+  </head>
+  <body>
+    <div id="root"><div class="boot"><div><img src="/logo.svg" alt="ScriptStudio by fastrr" /><b><i></i></b></div></div></div>
+  </body>
+</html>

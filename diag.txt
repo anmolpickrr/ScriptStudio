@@ -1,0 +1,59 @@
+PASS index / -> 200 text/html; charset=utf-8 1902B 0.305622s
+PASS bundle /assets/index-CSNaJkEi.js -> 200 text/javascript; charset=utf-8 342314B 0.346560s
+PASS health /api/health -> 200 application/json 11B 0.293250s
+PASS config /api/config -> 200 application/json 240B 0.322406s
+PASS deep_health /api/health/deep -> 200 application/json 341B 1.843726s
+deep_health: {"version":"eb7cc76","store":"postgres","llm_provider":"gemini","models":["gemini-3.5-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-flash-latest","gemini-3.5-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-flash-latest","gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite"],"config_issues":[],"db":"ok","ok":true}
+PASS options /api/options -> 200 application/json 3294B 0.289201s
+PASS new_route /new -> 200 text/html; charset=utf-8 1902B 0.265544s
+PASS pages site https://anmolpickrr.github.io/ScriptStudio/ -> 200
+PASS pages bundle points at https://scriptstudio.onrender.com
+INFO pages serves assets/index-CUNta4kk.js (latest-features marker: 1)
+PASS pages deep link (status 404)
+PASS API allows https://anmolpickrr.github.io
+PASS API issues header session
+PASS mcp initialize
+PASS mcp tools/list
+PASS no OAuth required (404)
+PASS GPT action schema
+CREATE -> 200 {"id":"e1178be4d0b9","status":"queued","created_at":"2026-10-29T19:42:17.236168+00:00","updated_at":"2026-10-29T19:42:17.236208+00:00","title":"","product_url":"https://www.allbirds.com/products/mens-tree-runners","brand":"","platform":"Instagram Reels","duration_sec":30,"passed":false,"owner":"guest-e1f051bab98a398d"}
+[0s] queued — null null null
+[10s] running — product_analysis started 
+[21s] running — concepts started 
+[187s] running — beats started 
+[218s] running — write started 
+[239s] running — qc started round 1
+[259s] running — revise started round 1
+[280s] running — qc started round 2
+[301s] running — revise started round 2
+[322s] running — qc started round 3
+[342s] running — revise started round 3
+[363s] running — qc started round 4
+[384s] needs_review — run done Full generation
+{
+  "status": "needs_review",
+  "error": "",
+  "title": "The Honest Review",
+  "scenes": 6,
+  "facts_verified": 16,
+  "flags": [
+    "Assumed: No specific product facts provided - focused on general everyday comfort and the first purchase objective."
+  ],
+  "qc": {
+    "story_logic": 4,
+    "authenticity": 5,
+    "cta_relevance": 5,
+    "hook_strength": 4,
+    "visual_vo_sync": 5,
+    "brief_alignment": 5,
+    "dialogue_quality": 4,
+    "product_integration": 5
+  },
+  "passed": false
+}
+PASS export preview -> 200 text/html; charset=utf-8 9756B
+PASS export docx -> 200 application/vnd.openxmlformats-officedocument.wordprocessingml.document 38439B
+PASS export download -> 200 text/html; charset=utf-8 9114B
+PASS relay prompt ready (25664 chars)
+relay answer -> 200 status=needs_review title=The 9:58 Standup
+relay docx -> 200 application/vnd.openxmlformats-officedocument.wordprocessingml.document
