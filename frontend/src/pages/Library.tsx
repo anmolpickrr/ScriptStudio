@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import { Icon, label, Skeleton, timeAgo, useToast } from "../components/ui";
+import { useJobActions } from "../components/Cards";
+import { Icon, label, Poster, Skeleton, timeAgo, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { LibraryItem } from "../types";
 
 export default function Library() {
   const { user } = useSession();
   const toast = useToast();
+  const acts = useJobActions();
   const [items, setItems] = useState<LibraryItem[] | null>(null);
   const load = useCallback(() => api.get<LibraryItem[]>("/api/library").then(setItems).catch((e) => toast(e.message, "error")), [toast]);
   useEffect(() => { load(); }, [load]);
@@ -27,17 +29,27 @@ export default function Library() {
           <div className="concepts">
             {items.map((a) => (
               <div key={a.job_id} className="concept lib-card">
-                <span className="lib-ribbon"><Icon.check /> Approved</span>
-                <Link to={`/scripts/${a.job_id}`} className="lib-title"><b>{a.title}</b></Link>
-                <div className="muted small" style={{ textTransform: "capitalize" }}>{a.platform} · {a.duration_sec}s · {label(a.hook_type)}</div>
-                <div>{a.logline}</div>
+                <div className="lib-top">
+                  <Poster brand={a.title} platform={a.platform} seconds={a.duration_sec} height={72} />
+                  <div className="grow">
+                    <span className="lib-ribbon"><Icon.check /> Approved {timeAgo(a.approved_at)}</span>
+                    <Link to={`/scripts/${a.job_id}`} className="lib-title"><b>{a.title}</b></Link>
+                    <div className="muted small">{a.platform} · {a.duration_sec}s</div>
+                  </div>
+                </div>
+                {a.hook_type && <span className="chip-meta lib-hook">Hook · {label(a.hook_type)}</span>}
+                <div className="small">{a.logline}</div>
                 {a.editor_notes && <div className="hookline">“{a.editor_notes}”</div>}
-                <div className="muted small">Approved {timeAgo(a.approved_at)}</div>
-                {user?.admin && (
-                  <div className="foot"><button className="btn ghost" onClick={async () => {
-                    try { await api.del(`/api/library/${a.job_id}`); toast("Removed from the library."); load(); } catch (e) { toast((e as Error).message, "error"); }
-                  }}>Remove from library</button></div>
-                )}
+                <div className="foot lib-foot">
+                  <Link className="btn sm secondary" to={`/scripts/${a.job_id}`}>Open script</Link>
+                  <button className="btn sm ghost" onClick={() => acts.editAsNew(a.job_id)} title="Starts a new script with this one's inputs">Write a similar one</button>
+                  {user?.admin && (
+                    <button className="btn sm ghost danger-text" onClick={async () => {
+                      if (!window.confirm("Remove this script from the house library? The script itself stays in Scripts.")) return;
+                      try { await api.del(`/api/library/${a.job_id}`); toast("Removed from the library."); load(); } catch (e) { toast((e as Error).message, "error"); }
+                    }}>Remove</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

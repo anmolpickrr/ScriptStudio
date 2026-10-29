@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, clearDraft, composeBrief, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { deleteDraft, getDraft, hasContent, saveNamedDraft } from "../drafts";
-import { ENGINE_NAME, Icon, label, Spinner, TagInput, useToast } from "../components/ui";
+import { ENGINE_NAME, Icon, Spinner, TagInput, useToast } from "../components/ui";
+import { LengthPicker, StoryFields } from "../components/Pickers";
 import { useSession } from "../session";
 import { SheetPreview } from "./Home";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
@@ -54,9 +55,6 @@ export default function NewScript() {
   useEffect(() => saveDraft(f), [f]);
 
   const plat = options!.platforms[f.platform];
-  useEffect(() => {
-    if (plat && !plat.durations.includes(f.duration_sec)) set("duration_sec", plat.durations.includes(30) ? 30 : plat.durations[0]);
-  }, [f.platform]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const composed = useMemo(() => composeBrief(f), [f]);
   const errors = useMemo(() => {
@@ -162,6 +160,9 @@ export default function NewScript() {
                         placeholder="Paste the brief: the occasion or idea, the message, the offer, anything the client asked for. E.g. “Karwa Chauth gifting film — husband surprises wife with a comfort cushion after the fast.”"
                         onChange={(e) => set("client_brief", e.target.value)} onBlur={blur("client_brief")} />
             </Field>
+            <Field label="Story">
+              <StoryFields f={f} set={set} />
+            </Field>
             <Field label="Platform">
               <div className="options" role="radiogroup" aria-label="Platform">
                 {Object.entries(options!.platforms).map(([k, p]) => (
@@ -170,10 +171,7 @@ export default function NewScript() {
             </Field>
             <div className="grid2">
               <Field label="Duration">
-                <div className="options" role="radiogroup" aria-label="Duration">
-                  {plat?.durations.map((d) => (
-                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={`opt sm ${f.duration_sec === d ? "on" : ""}`} onClick={() => set("duration_sec", d)}>{d}s</button>))}
-                </div>
+                <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
               </Field>
               <Field label="Subtitles">
                 <div className="options" role="radiogroup" aria-label="Subtitles">
@@ -195,9 +193,6 @@ export default function NewScript() {
               </Field>
               <Field id="creative_direction" label="Model / talent">
                 <input id="creative_direction" type="text" value={f.creative_direction} maxLength={5000} placeholder="e.g. Indian couple, wife 30–38, husband 33–40" onChange={(e) => set("creative_direction", e.target.value)} />
-              </Field>
-              <Field id="cta" label="CTA">
-                <input id="cta" type="text" value={f.cta} maxLength={300} placeholder="e.g. Shop Now" onChange={(e) => set("cta", e.target.value)} />
               </Field>
             </div>
           </section>
@@ -248,12 +243,6 @@ export default function NewScript() {
                   {Array.from(new Set([...AD_TYPES, f.ad_type])).map((t) => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field id="tone" label="Tone">
-                <input id="tone" type="text" value={f.tone} maxLength={300} placeholder="e.g. warm, festive, emotional" onChange={(e) => set("tone", e.target.value)} />
-              </Field>
-              <Field id="theme" label="Theme / Occasion">
-                <input id="theme" type="text" value={f.theme || ""} maxLength={300} placeholder="e.g. Karwa Chauth" onChange={(e) => set("theme", e.target.value)} />
-              </Field>
             </div>
             <div className="grid2">
               <Field id="mandatories" label="Must Include" hint="Exact lines, legal supers, hashtags — used word for word.">
@@ -266,15 +255,6 @@ export default function NewScript() {
           </Section>
 
           <Section n={4} title="Story & Visuals">
-            <Field label="Hook Type">
-              <div className="options">
-                <button type="button" className={`opt sm ${!f.hook_type ? "on" : ""}`} onClick={() => set("hook_type", null)}>Auto</button>
-                {Object.keys(options!.hook_types).map((k) => (
-                  <button type="button" key={k} title={options!.hook_types[k]} className={`opt sm ${f.hook_type === k ? "on" : ""}`} onClick={() => set("hook_type", k)}>
-                    <span style={{ textTransform: k === "pov" ? "none" : "capitalize" }}>{label(k)}</span></button>))}
-              </div>
-              {f.hook_type && <p className="hint">{options!.hook_types[f.hook_type]}</p>}
-            </Field>
             <Field label="Design Style">
               <div className="options">{DESIGN_STYLES.map((d) => (
                 <button type="button" key={d} className={`opt sm ${f.design_style === d ? "on" : ""}`} onClick={() => set("design_style", f.design_style === d ? "" : d)}>{d}</button>))}

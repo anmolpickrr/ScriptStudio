@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { DraftCard, JobCard, useJobDelete } from "../components/Cards";
+import { LengthPicker, StoryFields } from "../components/Pickers";
 import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, PlatformIcon, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
 import { Draft, hasContent, listDrafts, saveNamedDraft } from "../drafts";
 import { useSession } from "../session";
@@ -64,10 +65,6 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [f]);
 
-  const plat = options!.platforms[f.platform];
-  useEffect(() => {
-    if (plat && !plat.durations.includes(f.duration_sec)) set("duration_sec", plat.durations.includes(30) ? 30 : plat.durations[0]);
-  }, [f.platform]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const urlOk = validUrl(f.product_url);
   const briefOk = f.client_brief.trim().length >= 20;
@@ -143,6 +140,7 @@ export default function Home() {
                 <span className={`brief-count ${briefOk ? "ok" : ""}`}>{briefOk ? <><Icon.check /> Brief added</> : f.client_brief.trim() ? "Add a little more…" : ""}</span>
               </div>
             </div>
+            <StoryFields f={f} set={set} />
             <div className="composer-opts">
               <div className="opt-group">
                 <span className="opt-label">Platform</span>
@@ -154,12 +152,7 @@ export default function Home() {
               </div>
               <div className="opt-group">
                 <span className="opt-label">Length</span>
-                <div className="length-seg" role="radiogroup" aria-label="Duration" style={{ ["--i" as string]: Math.max(0, plat?.durations.indexOf(f.duration_sec) ?? 0), ["--n" as string]: plat?.durations.length || 1 }}>
-                  <i className="length-thumb" aria-hidden="true" />
-                  {plat?.durations.map((d) => (
-                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={f.duration_sec === d ? "on" : ""} onClick={() => set("duration_sec", d)}>
-                      <span className="tick" style={{ width: `${Math.min(100, (d / Math.max(...(plat?.durations || [d]))) * 100)}%` }} />{d}s</button>))}
-                </div>
+                <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
               </div>
               <div className="opt-group">
                 <span className="opt-label">Writer</span>
@@ -244,8 +237,8 @@ export default function Home() {
 
 /** The composer's fields only, so the full form's other answers are never overwritten. */
 function pick(f: JobInputs): Partial<JobInputs> {
-  const { product_url, client_brief, platform, duration_sec, engine } = f;
-  return { product_url, client_brief, platform, duration_sec, engine };
+  const { product_url, client_brief, platform, duration_sec, engine, theme, hook_type, cta, tone } = f;
+  return { product_url, client_brief, platform, duration_sec, engine, theme, hook_type, cta, tone };
 }
 
 /** A live miniature of the script sheet you'll get, filled in as you type. */

@@ -60,7 +60,7 @@ export function JobCard({ job, variant = "reel", onDelete, selectable, selected,
   const open = () => (selectable ? onSelect?.(job.id) : nav(`/scripts/${job.id}`));
   const onKey = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   return (
-    <div className={`jcard ${variant} card-click ${selected ? "selected" : ""} st-${job.status}`} role="link" tabIndex={0}
+    <div className={`jcard jc-${variant} card-click ${selected ? "selected" : ""} st-${job.status}`} role="link" tabIndex={0}
          onClick={open} onKeyDown={onKey} style={{ animationDelay: `${delay}ms` }} aria-label={`Open ${job.title || "script"}`}>
       <span className="jcard-poster">
         <Poster brand={who} platform={job.platform} seconds={job.duration_sec} height={variant === "reel" ? 104 : 84} />
@@ -99,7 +99,7 @@ export function DraftCard({ draft, variant = "reel", delay = 0 }: { draft: Draft
   const save = () => { renameDraft(draft.id, name.trim()); setEditing(false); };
   const del = () => { deleteDraft(draft.id); toast("Draft deleted", "info", { label: "Undo", onClick: () => restoreDraft(draft) }); };
   return (
-    <div className={`jcard ${variant} draft-card card-click`} role="link" tabIndex={0} style={{ animationDelay: `${delay}ms` }}
+    <div className={`jcard jc-${variant} draft-card card-click`} role="link" tabIndex={0} style={{ animationDelay: `${delay}ms` }}
          onClick={() => !editing && openDraft(nav, draft.id)} onKeyDown={(e) => { if (!editing && e.key === "Enter") openDraft(nav, draft.id); }}>
       <span className="jcard-poster"><span className="poster paper" style={{ height: variant === "reel" ? 104 : 84 }} aria-hidden="true"><i /><i /><i /><i /></span></span>
       <div className="jcard-body">
