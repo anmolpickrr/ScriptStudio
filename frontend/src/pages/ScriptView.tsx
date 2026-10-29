@@ -478,6 +478,7 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const engine = job.inputs.engine as "chatgpt" | "claude";
   const name = ENGINE_NAME[engine];
   const [sent, setSent] = useState(false);
+  const [pluginSent, setPluginSent] = useState(false);
   const [setup, setSetup] = useState(false);
   const [gptUrl, setGpt] = useState(getGptUrl());
   const [showPrompt, setShowPrompt] = useState(false);
@@ -567,6 +568,20 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
           </div>
           {sent && !assisted && <div className="waiting"><span className="pulse-dot" /> Listening for the script from {name}…</div>}
           {error && <div className="banner bad" style={{ marginTop: 14, marginBottom: 0 }} role="alert"><span>⚠️</span><span>{error}</span></div>}
+          {engine === "chatgpt" && (
+            <div className="plugin-tip">
+              <span className="gl"><Icon.info /></span>
+              <div>
+                <b>Using the ChatGPT desktop app with the ScriptStudio plugin?</b>
+                <span>Copy the request, pick <b>ScriptStudio</b> in the message box, paste and press Enter. The plugin writes and sends the script back here by itself.</span>
+              </div>
+              <button className="btn sm secondary" onClick={async () => {
+                try { await navigator.clipboard.writeText(`write script ${relay.code}`); setPluginSent(true); toast("Request copied. Paste it into ChatGPT with ScriptStudio selected.", "ok"); }
+                catch { toast(`Copy this into ChatGPT: write script ${relay.code}`); }
+              }}><Icon.copy /> Copy request</button>
+            </div>
+          )}
+          {pluginSent && <div className="waiting"><span className="pulse-dot" /> Listening for the script from the ChatGPT plugin…</div>}
           <div className="code-chip" title="The job's private code">Job code <code>{relay.code}</code></div>
         </div>
       </div>
