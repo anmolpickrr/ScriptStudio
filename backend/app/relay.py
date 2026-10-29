@@ -43,7 +43,7 @@ class LeanDialogue(BaseModel):
 
 class LeanScene(BaseModel):
     number: int
-    label: str
+    label: str = ""
     start_sec: float
     end_sec: float
     visual: str
@@ -68,12 +68,14 @@ class LeanCTA(BaseModel):
 
 
 class LeanScript(BaseModel):
+    # the chat is asked for every field (the schema it sees marks them all required); a few have defaults here so
+    # an answer that skips a sheet detail still goes through instead of bouncing back
     title: str
     logline: str
-    talent_summary: str
-    product_line: str
-    idea: str
-    small_print: str
+    talent_summary: str = ""
+    product_line: str = ""
+    idea: str = ""
+    small_print: str = ""
     hook_type: str
     tone: str
     characters: list[LeanCharacter]
