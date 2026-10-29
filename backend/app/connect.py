@@ -55,7 +55,8 @@ def task(code: str, submit_hint: str) -> dict:
         "code": relay.handoff_code(job),
         "kind": "revision" if job.relay.kind == "revise" else "new script",
         "brand": brand, "product_url": job.inputs.product_url,
-        "instructions": prompt + f"\n\nWHEN YOU ARE DONE: {submit_hint} Do not paste the JSON into the chat. If the "
+        "instructions": prompt + f"\n\nWHEN YOU ARE DONE: {submit_hint} Work quickly: do not write the script, a plan "
+                                 "or the JSON in the chat first — put it straight into the submission. If the "
                                  "submission returns problems, fix exactly those and submit again.",
     }
 
@@ -89,8 +90,9 @@ def submit(code: str, answer: Any, via: str) -> dict:
 
 SERVER_INFO = {"name": "ScriptStudio", "title": "ScriptStudio by fastrr", "version": "1.0.0"}
 INSTRUCTIONS = ("ScriptStudio writes production-ready video ad scripts. When the user gives you a ScriptStudio code "
-                "(SS-…), call get_script_job with it, follow the returned instructions exactly to write the script, "
-                "then call submit_script with the same code and the JSON object. Never invent product facts.")
+                "(SS-…), call get_script_job with it, follow the returned instructions exactly, then call submit_script "
+                "with the same code and the JSON object. Don't draft the script in the chat first; write it directly "
+                "into submit_script. Keep the reply after submitting to one line. Never invent product facts.")
 TOOLS = [
     {"name": "get_script_job", "title": "Get a ScriptStudio job",
      "description": "Fetch a ScriptStudio script job by its code (looks like SS-1a2b3c4d5e6f-9a8b7c6d). Returns the brief, "

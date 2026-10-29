@@ -20,8 +20,8 @@ from .house_format import FormatSpec
 from .ingest.product import _Extraction, _ExtractedFact, build_dossier, gather_source, PageSource
 from .llm import _extract_json
 from .qc.checks import run_checks
-from .schemas import (Concept, ConceptDecision, ConceptScore, CreativeBrief, FactCategory, Flag, Job, JobStatus,
-                      QCReport, RelayState, Revision, Script, StageEvent)
+from .schemas import (CTA, Character, Concept, ConceptDecision, ConceptScore, CreativeBrief, DialogueLine, FactCategory, Flag,
+                      Job, JobStatus, QCReport, RelayState, Revision, Scene, Script, StageEvent)
 
 ENGINE_LABEL = {"chatgpt": "ChatGPT", "claude": "Claude"}
 MAX_SOURCE = 14000
@@ -34,21 +34,111 @@ class RelayFact(BaseModel):
     quote: str
 
 
+# Lean answer format for chats: only what the script sheet and the quality checks use. A chat writes the whole
+# answer as one JSON block (or one tool call), so every field it doesn't need is time the person waits.
+class LeanDialogue(BaseModel):
+    character_id: str
+    line: str
+
+
+class LeanScene(BaseModel):
+    number: int
+    label: str
+    start_sec: float
+    end_sec: float
+    visual: str
+    vo: str
+    dialogue: list[LeanDialogue]
+    on_screen_text: str
+    characters: list[str]
+    product_fact_ids: list[str]
+    sync_note: str
+
+
+class LeanCharacter(BaseModel):
+    id: str
+    name: str
+    description: str
+
+
+class LeanCTA(BaseModel):
+    line: str
+    action: str
+    on_screen_text: str
+
+
+class LeanScript(BaseModel):
+    title: str
+    logline: str
+    talent_summary: str
+    product_line: str
+    idea: str
+    small_print: str
+    hook_type: str
+    tone: str
+    characters: list[LeanCharacter]
+    continuity: list[str]
+    scenes: list[LeanScene]
+    cta: LeanCTA
+
+
+class LeanBrief(BaseModel):
+    objective: str
+    key_message: str
+    audience: str
+    tone: str
+    assumptions: list[str]
+
+
+class LeanConcept(BaseModel):
+    title: str
+    logline: str
+    hook_line: str
+
+
 class RelayResult(BaseModel):
     product_name: str
     brand: str
     facts: list[RelayFact]
-    packaging_description: str
     unknowns: list[str]
-    brief: CreativeBrief
-    concepts: list[Concept]
+    brief: LeanBrief
+    concepts: list[LeanConcept]
     chosen_index: int
-    director_notes: str
-    script: Script
+    script: LeanScript
 
 
 class RelayRevision(BaseModel):
-    script: Script
+    script: LeanScript
+
+
+def full_script(lean: LeanScript, job: Job) -> Script:
+    """The lean answer as a complete Script (fields the chat skipped stay empty)."""
+    i = job.inputs
+    return Script(
+        title=lean.title, logline=lean.logline, talent_summary=lean.talent_summary, product_line=lean.product_line,
+        idea=lean.idea, small_print=lean.small_print, concept_summary=lean.idea or lean.logline, hook_type=lean.hook_type,
+        theme=i.theme or "", audience=i.target_audience, tone=lean.tone or i.tone,
+        characters=[Character(id=c.id, name=c.name, role=c.name, description=c.description, continuity="")
+                    for c in lean.characters],
+        continuity=lean.continuity, product_details=[],
+        scenes=[Scene(number=sc.number, label=sc.label, start_sec=sc.start_sec, end_sec=sc.end_sec, location="", shot="",
+                      visual=sc.visual, vo=sc.vo,
+                      dialogue=[DialogueLine(character_id=d.character_id, line=d.line, delivery="") for d in sc.dialogue],
+                      on_screen_text=sc.on_screen_text, sfx_music="", transition="", characters=sc.characters, props=[],
+                      product_fact_ids=sc.product_fact_ids, sync_note=sc.sync_note) for sc in lean.scenes],
+        cta=CTA(line=lean.cta.line, visual="", on_screen_text=lean.cta.on_screen_text, action=lean.cta.action),
+        production_notes=[])
+
+
+def _full_brief(b: LeanBrief, job: Job) -> CreativeBrief:
+    return CreativeBrief(objective=b.objective, key_message=b.key_message, supporting_messages=[], audience=b.audience,
+                         audience_insight="", tone=b.tone, cta_intent=job.inputs.cta, mandatories=job.inputs.mandatories,
+                         exclusions=job.inputs.exclusions, reference_takeaways=[], assumptions=b.assumptions)
+
+
+def _full_concept(c: LeanConcept) -> Concept:
+    return Concept(title=c.title, logline=c.logline, hook_type="", hook_visual="", hook_line=c.hook_line, story_arc="",
+                   product_role="", ending_button="", why_it_works="", risks="")
 
 
 class RelayError(ValueError):
@@ -96,23 +186,22 @@ award-winning creative director and a senior scriptwriter. Produce a production-
 WORK IN THIS ORDER (all inside one JSON answer):
 1. FACTS — from the PRODUCT SOURCE below only. Each fact needs a `quote` copied VERBATIM from the source (3–25 words, \
 exact characters). Use ids F1, F2, … Never paraphrase inside `quote`. List what a writer needs but the page doesn't \
-state in `unknowns`. Describe the real pack in `packaging_description` only from the source; empty if unknown.
+state in `unknowns`.
 2. BRIEF — turn the client brief into `brief`. List every gap you filled in `brief.assumptions`.
-3. CONCEPTS — {n} genuinely different concepts (different story engines). Pick the strongest in `chosen_index` \
-(0-based) and give 2–4 sharp `director_notes`.
+3. CONCEPTS — {n} genuinely different concepts (different story engines), each just a title, a one-line logline and \
+its hook line. Pick the strongest in `chosen_index` (0-based).
 4. SCRIPT — write the chosen concept as `script`, following every rule below. Every scene's `product_fact_ids` lists \
 the fact ids it uses; a product claim without a fact id is not allowed.
 
 FORMAT RULES
 - Scenes are contiguous: scene 1 starts at 0, each starts where the previous ended, the last ends at exactly \
 {i.duration_sec}s.
-- `shot` = framing + camera movement; `visual` = concrete, shootable action (location, who, what we see of the product).
+- `visual` = concrete, shootable action in 1–2 sentences (location, who, what we see of the product).
 - `vo` = voiceover, `dialogue` = on-camera lines (use "" / [] when none). Speakers must be in that scene's `characters`.
-- `sync_note` = one line on why the picture belongs with the words.
+- `sync_note` = under 12 words on why the picture belongs with the words (required when there is VO or dialogue).
 - `continuity` = wardrobe, props, product state, time of day — everything that must match between scenes.
 - The CTA is delivered in the final scene and matches the brief and platform.
-- `headline_options`: 2–3 short headline options (≤8 words). `supporting_copy`: 1–2 sentences of caption copy.
-  `visual_style`: the look in one line. `elements_to_highlight`: 3–5 moments/benefits the edit must feature.
+- Be concise everywhere: no field longer than it needs to be. At most 12 facts, the ones the script uses first.
 - `label` (per scene): the scene's role in 1–4 words, e.g. "Hook", "The surprise", "Reveal and benefits",
   "Gift and CTA". The last scene's label ends with "CTA".
 - `talent_summary`: who is on screen in one line, e.g. "Indian couple, wife 30–38 and husband 33–40, fully
@@ -174,7 +263,7 @@ INPUTS
 {_inputs_block(job)}
 
 CURRENT SCRIPT:
-{job.script.model_dump_json() if job.script else "{}"}
+{LeanScript.model_validate(job.script.model_dump()).model_dump_json() if job.script else "{}"}
 
 OUTPUT: reply with ONE JSON object only, inside a single ```json code block, matching this JSON schema exactly:
 {_schema(RelayRevision)}
@@ -239,25 +328,25 @@ def apply_answer(job: Job, spec: FormatSpec, text: str) -> Job:
         ext = _Extraction(product_name=res.product_name, brand=res.brand,
                           facts=[_ExtractedFact(category=f.category, statement=f.statement, quote=f.quote, from_image=False)
                                  for f in res.facts],
-                          packaging_description=res.packaging_description, unknowns=res.unknowns)
+                          packaging_description="", unknowns=res.unknowns)
         page = PageSource(url=job.inputs.product_url)
         job.dossier, flags = build_dossier(job.inputs.product_url, page, job.relay.source_text, ext,
                                            job.inputs.product_copy, ids=ids)
         job.flags = [f for f in job.flags if f.area != "product" or f.severity == "major"] + flags
-        job.brief = res.brief
+        job.brief = _full_brief(res.brief, job)
         for a in res.brief.assumptions:
             job.flags.append(Flag(severity="minor", area="assumption", message=f"Assumed: {a}",
                                   suggestion="Confirm or correct in the brief."))
-        job.concepts = res.concepts[:max(1, job.inputs.concept_count)]
+        job.concepts = [_full_concept(c) for c in res.concepts[:max(1, job.inputs.concept_count)]]
         idx = min(max(res.chosen_index, 0), len(job.concepts) - 1) if job.concepts else 0
         job.concept_decision = ConceptDecision(
             scores=[ConceptScore(index=k, hook=0, brief_fit=0, originality=0, producibility=0, product_truth=0,
                                  rationale="") for k in range(len(job.concepts))],
-            chosen_index=idx, director_notes=res.director_notes)
-        job.script = res.script
+            chosen_index=idx, director_notes="")
+        job.script = full_script(res.script, job)
     else:
         rev: RelayRevision = _parse(text, RelayRevision)  # type: ignore[assignment]
-        job.script = rev.script
+        job.script = full_script(rev.script, job)
 
     findings = run_checks(job.script, job.inputs, job.dossier, job.brief, spec)
     passed = not any(f.severity in ("blocker", "major") for f in findings)
