@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import secrets
-from typing import Optional
+from typing import Callable, Optional
 
 from pydantic import BaseModel, ValidationError
 
@@ -113,21 +113,41 @@ class RelayRevision(BaseModel):
     script: LeanScript
 
 
+def _cast(lean: LeanScript) -> tuple[list[Character], Callable[[str], str]]:
+    """Chats often name a character in scenes ("Creator", "Bruno") instead of using its id.
+    Map every reference onto a defined character, defining it from the continuity notes when needed."""
+    chars = [Character(id=c.id, name=c.name, role=c.name, description=c.description, continuity="")
+             for c in lean.characters]
+    known = {k.strip().lower(): c.id for c in chars for k in (c.id, c.name) if k.strip()}
+    notes = {b.split(":", 1)[0].strip().lower(): b.split(":", 1) for b in lean.continuity if ":" in b}
+
+    def ref(name: str) -> str:
+        key = name.strip().lower()
+        if not key:
+            return name
+        if key not in known:
+            label, desc = (x.strip() for x in notes.get(key, (name, "")))
+            chars.append(Character(id=label, name=label, role=label, description=desc, continuity=""))
+            known[key] = label
+        return known[key]
+    return chars, ref
+
+
 def full_script(lean: LeanScript, job: Job) -> Script:
     """The lean answer as a complete Script (fields the chat skipped stay empty)."""
     i = job.inputs
+    characters, ref = _cast(lean)
+    scenes = [Scene(number=sc.number, label=sc.label, start_sec=sc.start_sec, end_sec=sc.end_sec, location="", shot="",
+                    visual=sc.visual, vo=sc.vo,
+                    dialogue=[DialogueLine(character_id=ref(d.character_id), line=d.line, delivery="") for d in sc.dialogue],
+                    on_screen_text=sc.on_screen_text, sfx_music="", transition="",
+                    characters=list(dict.fromkeys(ref(c) for c in sc.characters)), props=[],
+                    product_fact_ids=sc.product_fact_ids, sync_note=sc.sync_note) for sc in lean.scenes]
     return Script(
         title=lean.title, logline=lean.logline, talent_summary=lean.talent_summary, product_line=lean.product_line,
         idea=lean.idea, small_print=lean.small_print, concept_summary=lean.idea or lean.logline, hook_type=lean.hook_type,
         theme=i.theme or "", audience=i.target_audience, tone=lean.tone or i.tone,
-        characters=[Character(id=c.id, name=c.name, role=c.name, description=c.description, continuity="")
-                    for c in lean.characters],
-        continuity=lean.continuity, product_details=[],
-        scenes=[Scene(number=sc.number, label=sc.label, start_sec=sc.start_sec, end_sec=sc.end_sec, location="", shot="",
-                      visual=sc.visual, vo=sc.vo,
-                      dialogue=[DialogueLine(character_id=d.character_id, line=d.line, delivery="") for d in sc.dialogue],
-                      on_screen_text=sc.on_screen_text, sfx_music="", transition="", characters=sc.characters, props=[],
-                      product_fact_ids=sc.product_fact_ids, sync_note=sc.sync_note) for sc in lean.scenes],
+        characters=characters, continuity=lean.continuity, product_details=[], scenes=scenes,
         cta=CTA(line=lean.cta.line, visual="", on_screen_text=lean.cta.on_screen_text, action=lean.cta.action),
         production_notes=[])
 

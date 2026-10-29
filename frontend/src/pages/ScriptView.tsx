@@ -113,9 +113,9 @@ export default function ScriptView() {
     if (t === "review" && qc) return (
       <div className="panel">
         <div className="score-head">
-          <ScoreRing scores={qc.scores} />
-          <div><b>{qc.passed ? "Passed every quality gate" : "Needs an editor's eye"}</b>
-            <div className="muted small">Editorial review · round {qc.iteration}</div></div>
+          {Object.keys(qc.scores).length ? <ScoreRing scores={qc.scores} /> : <CheckRing open={openFindings.length} />}
+          <div><b>{qc.passed ? "Passed every quality check" : `${openFindings.length} thing${openFindings.length === 1 ? "" : "s"} to fix`}</b>
+            <div className="muted small">{Object.keys(qc.scores).length ? "Editorial review" : "Automatic checks"} · round {qc.iteration}</div></div>
         </div>
         {qc.summary && <p className="muted small" style={{ margin: 0 }}>{qc.summary}</p>}
         <div className="scores">
@@ -132,7 +132,7 @@ export default function ScriptView() {
             ))}
           </div>
         )}
-        {!qc.passed && <button className="btn secondary sm" onClick={() => setModal("revise")}>Revise with notes</button>}
+        {!qc.passed && <button className="btn primary sm" onClick={() => setModal("revise")}><Icon.spark /> {job.inputs.engine === "auto" ? "Fix these in a revision" : `Fix these with ${ENGINE_NAME[job.inputs.engine]}`}</button>}
       </div>
     );
     if (t === "flags") return (
@@ -207,7 +207,7 @@ export default function ScriptView() {
         </div>
         {job.script && !busy && (
           <div className="room-actions">
-            <button className="btn secondary" onClick={() => setModal("revise")}>Revise</button>
+            <button className="btn secondary" onClick={() => setModal("revise")}><Icon.edit /> Revise</button>
             <Menu trigger={(toggle) => (
               <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={["export", "docx", "download"].includes(working)}>
                 {["export", "docx", "download"].includes(working) ? <Spinner /> : null} Export <Icon.down /></button>
@@ -280,7 +280,7 @@ export default function ScriptView() {
 
       {modal === "revise" && <ReviseModal engine={job.inputs.engine} onClose={() => setModal(null)}
         onSubmit={(feedback) => rerun("revise", { feedback }, job.inputs.engine === "auto" ? "Revising… this takes a minute or two." : `Revision prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)} />}
-      {modal === "approve" && <ApproveModal blockers={blockers} admin={!!user?.admin} onClose={() => setModal(null)}
+      {modal === "approve" && <ApproveModal blockers={blockers} findings={openFindings.length} admin={!!user?.admin} onClose={() => setModal(null)}
         onSubmit={(body) => act("approve", () => api.post(`/api/jobs/${job.id}/approve`, body), "Approved and added to the house library. 🎉")} />}
       {modal === "delete" && (
         <Modal title="Delete this script?" onClose={() => setModal(null)} actions={<>
@@ -305,6 +305,16 @@ function ScoreRing({ scores }: { scores: Record<string, number> }) {
         <circle cx="32" cy="32" r={r} className="ring-fg" strokeDasharray={c} strokeDashoffset={c * (1 - avg / 5)} />
       </svg>
       <b>{avg.toFixed(1)}</b>
+    </div>
+  );
+}
+
+/** For chat-written scripts (no editorial scores): a ring that reads as a checklist result. */
+function CheckRing({ open }: { open: number }) {
+  return (
+    <div className={`ring checks ${open ? "todo" : "ok"}`} aria-label={open ? `${open} to fix` : "All checks passed"}>
+      <svg viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="32" r={26} className="ring-bg" /><circle cx="32" cy="32" r={26} className="ring-fg" /></svg>
+      <b>{open ? open : <Icon.check />}</b>
     </div>
   );
 }
@@ -416,8 +426,8 @@ function ReviseModal({ engine, onClose, onSubmit }: { engine: Job["inputs"]["eng
   );
 }
 
-function ApproveModal({ blockers, admin, onClose, onSubmit }: {
-  blockers: number; admin: boolean; onClose: () => void;
+function ApproveModal({ blockers, findings, admin, onClose, onSubmit }: {
+  blockers: number; findings: number; admin: boolean; onClose: () => void;
   onSubmit: (b: { notes: string; category: string; promote_note_to_format: boolean; acknowledge_flags: boolean }) => Promise<void>;
 }) {
   const [notes, setNotes] = useState("");
@@ -432,6 +442,7 @@ function ApproveModal({ blockers, admin, onClose, onSubmit }: {
         setBusy(true); await onSubmit({ notes, category, promote_note_to_format: promote, acknowledge_flags: ack }); setBusy(false);
       }}>{busy && <Spinner />} Approve</button></>}>
       <p className="muted" style={{ marginTop: 0 }}>Approved scripts join the house library and guide future scripts on the same platform and hook type.</p>
+      {findings > 0 && <div className="banner" style={{ marginBottom: 14 }}><span>⚠️</span><span>{findings} quality finding{findings === 1 ? " is" : "s are"} still open. You can approve anyway, or cancel and revise first.</span></div>}
       <div className="field"><label className="label" htmlFor="ap-notes">What makes it good? <em>· optional</em></label>
         <textarea id="ap-notes" className="short" value={notes} maxLength={2000} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Specific, visual hook; the product enters as the answer, not an ad break." /></div>
       <div className="field"><label className="label" htmlFor="ap-cat">Product category <em>· optional</em></label>

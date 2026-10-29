@@ -200,7 +200,7 @@ export default function Home() {
           <Link to="/scripts" className="link-arrow">All scripts <Icon.arrow /></Link>
         </div>
         <div className="desk-pills" role="tablist" aria-label="Filter">
-          {tabs.map((t) => (
+          {tabs.filter((t) => t.key === "all" || t.key === filter || t.n > 0).map((t) => (
             <button key={t.key} role="tab" aria-selected={filter === t.key} className={`desk-pill ${t.tone} ${filter === t.key ? "on" : ""}`} onClick={() => setFilter(t.key)}>
               {t.key !== "all" && <i className="pill-dot" />}{t.label}<b>{jobs === null && t.key !== "drafts" ? "–" : t.n}</b>
             </button>
