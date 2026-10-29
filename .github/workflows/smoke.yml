@@ -62,6 +62,7 @@ jobs:
           js=$(grep -oE 'assets/[^"]+\.js' out/pages.html | head -1)
           [[ "$code" == 200 && -n "$js" ]] && log "PASS pages site $SITE -> $code" || { log "FAIL pages site $SITE -> $code"; fail=1; }
           curl -sS -m 60 -o out/pages.js "$SITE$js" && grep -q -- "$BASE" out/pages.js && log "PASS pages bundle points at $BASE" || { log "FAIL pages bundle does not use $BASE"; fail=1; }
+          log "INFO pages serves $js (latest-features marker: $(grep -c 'Copy request' out/pages.js || true))"
           deep=$(curl -sS -m 60 -o out/deep.html -w "%{http_code}" "${SITE}scripts"); grep -q 'id="root"' out/deep.html && log "PASS pages deep link (status $deep)" || { log "FAIL pages deep link"; fail=1; }
           allow=$(curl -sS -m 60 -o /dev/null -D - -X OPTIONS "$BASE/api/jobs" -H "Origin: $ORIGIN" -H "Access-Control-Request-Method: POST" \
                   -H "Access-Control-Request-Headers: content-type,x-requested-with,x-session-token" | tr -d '\r' | grep -i '^access-control-allow-origin:' || true)
