@@ -3,16 +3,16 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { DraftCard, JobCard, useJobDelete } from "../components/Cards";
-import { ENGINE_NAME, greetingIST, hostOf, Icon, istStamp, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
+import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, PlatformIcon, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
 import { Draft, hasContent, listDrafts, saveNamedDraft } from "../drafts";
 import { useSession } from "../session";
 import type { Engine, JobInputs, JobStatus, JobSummary } from "../types";
 
 const STEPS = [
-  { title: "Share the product", text: "A product link and the client's brief, or import the brief as a .docx." },
-  { title: "Facts get checked", text: "Every claim is matched to the product page. Gaps are flagged, never invented." },
-  { title: "Script is written", text: "Concepts, labelled scenes, VO and on-screen text, then an editorial review." },
-  { title: "Export & share", text: "One click to Word or Google Docs, in your script-sheet format." },
+  { icon: "🔗", title: "Share the product", text: "A product link and the client's brief, or import the brief as a .docx." },
+  { icon: "🔍", title: "Facts get checked", text: "Every claim is matched to the product page. Gaps are flagged, never invented." },
+  { icon: "🎬", title: "Script is written", text: "Concepts, labelled scenes, VO and on-screen text, then an editorial review." },
+  { icon: "📄", title: "Export & share", text: "One click to Word or Google Docs, in your script-sheet format." },
 ];
 const BUCKETS: { label: string; tone: string; match: (s: JobStatus) => boolean }[] = [
   { label: "In progress", tone: "violet", match: (s) => ["queued", "running", "awaiting_input"].includes(s) },
@@ -33,6 +33,8 @@ export default function Home() {
   const toast = useToast();
   const now = useMinute();
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const startNew = () => { window.scrollTo({ top: 0, behavior: "smooth" }); setTimeout(() => formRef.current?.querySelector<HTMLInputElement>("input[type=url]")?.focus(), 350); };
   const [f, setF] = useState<JobInputs>(() => ({ ...EMPTY, ...pick(loadDraft()) }));
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -122,7 +124,8 @@ export default function Home() {
           <h1 className="display">Write the ad.<br />We'll check <mark className="hl">every fact.</mark></h1>
           <p className="lede">Paste a product link and the client's brief. You get a ready-to-shoot script sheet, checked against the product page.</p>
 
-          <form className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate>
+          <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
+                onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>
             <label className={`composer-url ${f.product_url && !urlOk ? "bad" : ""}`}>
               <span className="composer-ic" aria-hidden="true">🔗</span>
               <input type="url" inputMode="url" aria-label="Product link" placeholder="Paste the product link — https://brand.com/products/…"
@@ -145,18 +148,19 @@ export default function Home() {
                 <span className="opt-label">Platform</span>
                 <div className="chipset" role="radiogroup" aria-label="Platform">
                   {Object.entries(options!.platforms).slice(0, 4).map(([k, p]) => (
-                    <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`chip-opt ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>{p.label}</button>))}
+                    <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`chip-opt icon ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>
+                      <PlatformIcon p={p.label} size={14} />{p.label}</button>))}
                 </div>
               </div>
               <div className="opt-group">
                 <span className="opt-label">Length</span>
-                <div className="chipset" role="radiogroup" aria-label="Duration">
+                <div className="length-seg" role="radiogroup" aria-label="Duration" style={{ ["--i" as string]: Math.max(0, plat?.durations.indexOf(f.duration_sec) ?? 0), ["--n" as string]: plat?.durations.length || 1 }}>
+                  <i className="length-thumb" aria-hidden="true" />
                   {plat?.durations.map((d) => (
-                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={`chip-opt ${f.duration_sec === d ? "on" : ""}`} onClick={() => set("duration_sec", d)}>{d}s</button>))}
+                    <button type="button" role="radio" aria-checked={f.duration_sec === d} key={d} className={f.duration_sec === d ? "on" : ""} onClick={() => set("duration_sec", d)}>
+                      <span className="tick" style={{ width: `${Math.min(100, (d / Math.max(...(plat?.durations || [d]))) * 100)}%` }} />{d}s</button>))}
                 </div>
               </div>
-            </div>
-            <div className="composer-foot">
               <div className="opt-group">
                 <span className="opt-label">Writer</span>
                 <div className="writer-seg" role="radiogroup" aria-label="Who writes the script">
@@ -167,9 +171,12 @@ export default function Home() {
                     </button>))}
                 </div>
               </div>
+            </div>
+            <div className="composer-foot">
               <div className="composer-actions">
                 <Link className="btn ghost sm" to="/new">More details</Link>
-                <button className="btn primary" disabled={busy}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`}</button>
+                <button className="btn primary write-btn" disabled={busy} title={`${isMac ? "⌘" : "Ctrl"} + Enter`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`}
+                  {!busy && <span className="kbd-hint">{isMac ? "⌘" : "Ctrl"} ↵</span>}</button>
               </div>
             </div>
             <input ref={fileRef} type="file" hidden onChange={importBrief}
@@ -192,10 +199,10 @@ export default function Home() {
           </div>
           <Link to="/scripts" className="link-arrow">All scripts <Icon.arrow /></Link>
         </div>
-        <div className="desk-tabs" role="tablist" aria-label="Filter">
+        <div className="desk-pills" role="tablist" aria-label="Filter">
           {tabs.map((t) => (
-            <button key={t.key} role="tab" aria-selected={filter === t.key} className={`desk-tab ${t.tone} ${filter === t.key ? "on" : ""}`} onClick={() => setFilter(t.key)}>
-              <b>{jobs === null && t.key !== "drafts" ? "–" : t.n}</b><span>{t.label}</span>
+            <button key={t.key} role="tab" aria-selected={filter === t.key} className={`desk-pill ${t.tone} ${filter === t.key ? "on" : ""}`} onClick={() => setFilter(t.key)}>
+              {t.key !== "all" && <i className="pill-dot" />}{t.label}<b>{jobs === null && t.key !== "drafts" ? "–" : t.n}</b>
             </button>
           ))}
         </div>
@@ -204,20 +211,30 @@ export default function Home() {
         ) : shownJobs.length + shownDrafts.length === 0 ? (
           <div className="empty-desk"><span>{filter === "drafts" ? "📝" : "✍️"}</span><div>
             <b>{filter === "drafts" ? "No saved drafts." : filter === "all" ? "Your desk is clear." : `Nothing in “${filter}”.`}</b>{" "}
-            {filter === "drafts" ? "Use the save button in the composer to keep a brief for later." : "Write your first script above — it appears here as it's written."}</div></div>
+            {filter === "drafts" ? "Use “Save draft” in the composer to keep a brief for later." : "Write your first script above — it appears here as it's written."}</div>
+            <button className="btn sm" onClick={startNew}><Icon.plus /> New script</button></div>
         ) : (
           <div className="reel">
             {shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} delay={n * 40} />)}
             {shownJobs.map((j, n) => <JobCard key={j.id} job={j} delay={(n + shownDrafts.length) * 40} onDelete={(id) => remove([id])} />)}
+            {filter === "all" && shownJobs.length + shownDrafts.length < 4 && (
+              <button className="jcard ghost-card" onClick={startNew}>
+                <span className="ghost-plus"><Icon.plus /></span>
+                <span><b>Start a new script</b><small>Paste a link and a brief above</small></span>
+              </button>
+            )}
           </div>
         )}
       </section>
 
-      <section className="studio-row">
-        <h2 className="sec-h">How it works</h2>
-        <ol className="flow">
-          {STEPS.map((s, i) => (
-            <li key={s.title}><span className="flow-n">0{i + 1}</span><b>{s.title}</b><span>{s.text}</span></li>
+      <section className="journey-wrap">
+        <div className="sec-row"><h2 className="sec-h">How it works</h2><span className="muted small">From link to ready-to-shoot in about 3 minutes</span></div>
+        <ol className="journey">
+          {STEPS.map((st, i) => (
+            <li key={st.title} style={{ animationDelay: `${i * 90}ms` }}>
+              <span className="j-node"><span className="j-ic" aria-hidden="true">{st.icon}</span><span className="j-n">{i + 1}</span></span>
+              <b>{st.title}</b><span>{st.text}</span>
+            </li>
           ))}
         </ol>
       </section>

@@ -7,11 +7,11 @@ import { hostOf, Icon, Menu, Monogram, Skeleton, StatusBadge, timeAgo, useMedia,
 import { Draft, listDrafts } from "../drafts";
 import type { JobStatus, JobSummary } from "../types";
 
-const COLUMNS: { key: string; label: string; hint: string; match: (s: JobStatus) => boolean }[] = [
-  { key: "active", label: "In progress", hint: "Writing, or waiting for your chat", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
-  { key: "review", label: "Needs review", hint: "Flags or quality notes to check", match: (s) => s === "needs_review" || s === "failed" },
-  { key: "ready", label: "Ready", hint: "Passed every quality gate", match: (s) => s === "ready" },
-  { key: "approved", label: "Approved", hint: "In the house library", match: (s) => s === "approved" },
+const COLUMNS: { key: string; label: string; hint: string; empty: string; icon: string; match: (s: JobStatus) => boolean }[] = [
+  { key: "active", label: "In progress", hint: "Writing, or waiting for your chat", icon: "✍️", empty: "Scripts being written appear here, with live progress.", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
+  { key: "review", label: "Needs review", hint: "Flags or quality notes to check", icon: "🔎", empty: "All clear — nothing waiting for your review.", match: (s) => s === "needs_review" || s === "failed" },
+  { key: "ready", label: "Ready", hint: "Passed every quality gate", icon: "✅", empty: "Scripts that pass every quality gate land here.", match: (s) => s === "ready" },
+  { key: "approved", label: "Approved", hint: "In the house library", icon: "⭐", empty: "Approve a script to add it to the house library.", match: (s) => s === "approved" },
 ];
 const VIEW_KEY = "ss:scripts-view";
 
@@ -58,9 +58,10 @@ export default function Scripts() {
         <div className="grow">
           <div className="eyebrow"><Icon.film /> Your scripts</div>
           <h1 className="display-sm">Scripts</h1>
-          <p>Everything you've written, by where it is in the process.</p>
+          <p>{jobs === null ? "Everything you've written, by where it is in the process."
+            : <>{shown.length} script{shown.length === 1 ? "" : "s"}{drafts.length ? <> · {drafts.length} draft{drafts.length === 1 ? "" : "s"}</> : null}
+              {(() => { const r = shown.filter((j) => j.status === "needs_review" || j.status === "failed").length; return r ? <> · <span className="warn-text">{r} need{r === 1 ? "s" : ""} your review</span></> : null; })()}</>}</p>
         </div>
-        <Link className="btn primary" to="/new"><Icon.plus /> New script</Link>
       </div>
 
       {jobs === null ? (
@@ -91,7 +92,7 @@ export default function Scripts() {
             <div className={`board ${shownDrafts.length ? "with-drafts" : ""}`}>
               {shownDrafts.length > 0 && (
                 <section className="col drafts" aria-label="Drafts">
-                  <header><span className="col-dot" /><b>Drafts</b><span className="col-n">{shownDrafts.length}</span></header>
+                  <header><b>Drafts</b><span className="col-n">{shownDrafts.length}</span></header>
                   <p className="col-hint">Saved briefs, not written yet</p>
                   {shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} variant="tile" delay={n * 40} />)}
                 </section>
@@ -100,9 +101,9 @@ export default function Scripts() {
                 const items = shown.filter((j) => c.match(j.status));
                 return (
                   <section key={c.key} className={`col ${c.key}`} aria-label={c.label}>
-                    <header><span className="col-dot" /><b>{c.label}</b><span className="col-n">{items.length}</span></header>
+                    <header><b>{c.label}</b><span className="col-n">{items.length}</span></header>
                     <p className="col-hint">{c.hint}</p>
-                    {items.length === 0 ? <div className="col-empty">Nothing here</div> : items.map((j, n) => (
+                    {items.length === 0 ? <div className="col-empty"><span>{c.icon}</span>{c.empty}</div> : items.map((j, n) => (
                       <JobCard key={j.id} job={j} variant="tile" delay={n * 40} onDelete={(id) => remove([id])} />
                     ))}
                   </section>

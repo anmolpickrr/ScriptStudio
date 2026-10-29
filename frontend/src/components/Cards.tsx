@@ -4,7 +4,7 @@ import { api } from "../api";
 import { saveDraft } from "../brief";
 import { deleteDraft, deleteJobLater, Draft, getDraft, inputsOf, renameDraft, restoreDraft, saveNamedDraft } from "../drafts";
 import type { Job, JobSummary } from "../types";
-import { hostOf, Icon, Menu, Monogram, StatusBadge, timeAgo, useToast } from "./ui";
+import { hostOf, Icon, Menu, PlatformIcon, Poster, StatusBadge, timeAgo, useToast } from "./ui";
 
 /** Hide-now, delete-later with an Undo toast; returns the hidden ids and the delete function. */
 export function useJobDelete() {
@@ -60,31 +60,32 @@ export function JobCard({ job, variant = "reel", onDelete, selectable, selected,
   const open = () => (selectable ? onSelect?.(job.id) : nav(`/scripts/${job.id}`));
   const onKey = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
   return (
-    <div className={`${variant === "reel" ? "reel-card" : "tile"} card-click ${selected ? "selected" : ""}`} role="link" tabIndex={0}
+    <div className={`jcard ${variant} card-click ${selected ? "selected" : ""} st-${job.status}`} role="link" tabIndex={0}
          onClick={open} onKeyDown={onKey} style={{ animationDelay: `${delay}ms` }} aria-label={`Open ${job.title || "script"}`}>
-      <div className={variant === "reel" ? "reel-top" : "tile-top"}>
-        {selectable ? <span className={`check ${selected ? "on" : ""}`} aria-hidden="true"><Icon.check /></span>
-          : <Monogram text={who} size={variant === "reel" ? 34 : 30} />}
-        {variant === "tile" && <span className="tile-brand">{who}</span>}
-        <span className="card-tools" onClick={stop}>
-          {variant === "reel" && <StatusBadge status={job.status} />}
-          <Menu trigger={(toggle) => <button className="icon-btn" aria-label="Script actions" title="Actions" onClick={toggle}><Icon.more /></button>}>
-            {(close) => (<>
-              <button onClick={() => { close(); nav(`/scripts/${job.id}`); }}>Open<small>Script, quality review and exports</small></button>
-              <button onClick={() => { close(); acts.editAsNew(job.id); }}>Edit &amp; regenerate<small>Change the brief and write a new version</small></button>
-              <button onClick={() => { close(); acts.duplicate(job.id); }}>Duplicate as draft<small>Keep a copy of the inputs to reuse</small></button>
-              <button className="danger" onClick={() => { close(); onDelete(job.id); }}>Delete<small>You can undo for a few seconds</small></button>
-            </>)}
-          </Menu>
-        </span>
+      <span className="jcard-poster">
+        <Poster brand={who} platform={job.platform} seconds={job.duration_sec} height={variant === "reel" ? 104 : 84} />
+        {selectable && <span className={`check ${selected ? "on" : ""}`} aria-hidden="true"><Icon.check /></span>}
+      </span>
+      <div className="jcard-body">
+        <div className="jcard-top">
+          <StatusBadge status={job.status} />
+          <span className="card-tools" onClick={stop}>
+            <Menu trigger={(toggle) => <button className="icon-btn" aria-label="Script actions" title="Actions" onClick={toggle}><Icon.more /></button>}>
+              {(close) => (<>
+                <button onClick={() => { close(); nav(`/scripts/${job.id}`); }}>Open<small>Script, quality review and exports</small></button>
+                <button onClick={() => { close(); acts.editAsNew(job.id); }}>Edit &amp; regenerate<small>Change the brief and write a new version</small></button>
+                <button onClick={() => { close(); acts.duplicate(job.id); }}>Duplicate as draft<small>Keep a copy of the inputs to reuse</small></button>
+                <button className="danger" onClick={() => { close(); onDelete(job.id); }}>Delete<small>You can undo for a few seconds</small></button>
+              </>)}
+            </Menu>
+          </span>
+        </div>
+        <Link to={`/scripts/${job.id}`} className="card-title" onClick={(e) => { e.stopPropagation(); if (selectable) { e.preventDefault(); open(); } }}>
+          <b>{job.title || "Untitled (in progress)"}</b>
+        </Link>
+        <span className="jcard-meta"><PlatformIcon p={job.platform} size={13} /> {job.platform} · {job.duration_sec}s</span>
+        <span className="jcard-foot"><span className="jcard-brand">{who}</span><span>{timeAgo(job.updated_at)}</span></span>
       </div>
-      <Link to={`/scripts/${job.id}`} className="card-title" onClick={(e) => { e.stopPropagation(); if (selectable) { e.preventDefault(); open(); } }}>
-        <b>{job.title || "Untitled (in progress)"}</b>
-      </Link>
-      {variant === "reel" ? <span className="muted small">{who} · {job.platform} · {job.duration_sec}s</span>
-        : <div className="tile-meta"><span>{job.platform} · {job.duration_sec}s</span><span>{timeAgo(job.updated_at)}</span></div>}
-      {variant === "reel" ? <span className="reel-time">{timeAgo(job.updated_at)}</span>
-        : (job.status === "needs_review" || job.status === "failed" || job.status === "awaiting_input") && <StatusBadge status={job.status} />}
     </div>
   );
 }
@@ -98,31 +99,32 @@ export function DraftCard({ draft, variant = "reel", delay = 0 }: { draft: Draft
   const save = () => { renameDraft(draft.id, name.trim()); setEditing(false); };
   const del = () => { deleteDraft(draft.id); toast("Draft deleted", "info", { label: "Undo", onClick: () => restoreDraft(draft) }); };
   return (
-    <div className={`${variant === "reel" ? "reel-card" : "tile"} draft-card card-click`} role="link" tabIndex={0} style={{ animationDelay: `${delay}ms` }}
+    <div className={`jcard ${variant} draft-card card-click`} role="link" tabIndex={0} style={{ animationDelay: `${delay}ms` }}
          onClick={() => !editing && openDraft(nav, draft.id)} onKeyDown={(e) => { if (!editing && e.key === "Enter") openDraft(nav, draft.id); }}>
-      <div className={variant === "reel" ? "reel-top" : "tile-top"}>
-        <span className="draft-ic" aria-hidden="true"><Icon.doc /></span>
-        {variant === "tile" && <span className="tile-brand">{host}</span>}
-        <span className="card-tools" onClick={stop}>
-          {variant === "reel" && <span className="badge draft">Draft</span>}
-          <Menu trigger={(toggle) => <button className="icon-btn" aria-label="Draft actions" title="Actions" onClick={toggle}><Icon.more /></button>}>
-            {(close) => (<>
-              <button onClick={() => { close(); openDraft(nav, draft.id); }}>Continue editing<small>Opens the brief form</small></button>
-              <button onClick={() => { close(); setEditing(true); }}>Rename</button>
-              <button onClick={() => { close(); saveNamedDraft(draft.inputs, undefined, `Copy of ${draft.name}`); toast("Draft duplicated.", "ok"); }}>Duplicate</button>
-              <button className="danger" onClick={() => { close(); del(); }}>Delete<small>You can undo for a few seconds</small></button>
-            </>)}
-          </Menu>
-        </span>
+      <span className="jcard-poster"><span className="poster paper" style={{ height: variant === "reel" ? 104 : 84 }} aria-hidden="true"><i /><i /><i /><i /></span></span>
+      <div className="jcard-body">
+        <div className="jcard-top">
+          <span className="badge draft"><Icon.edit /> Draft</span>
+          <span className="card-tools" onClick={stop}>
+            <Menu trigger={(toggle) => <button className="icon-btn" aria-label="Draft actions" title="Actions" onClick={toggle}><Icon.more /></button>}>
+              {(close) => (<>
+                <button onClick={() => { close(); openDraft(nav, draft.id); }}>Continue editing<small>Opens the brief form</small></button>
+                <button onClick={() => { close(); setEditing(true); }}>Rename</button>
+                <button onClick={() => { close(); saveNamedDraft(draft.inputs, undefined, `Copy of ${draft.name}`); toast("Draft duplicated.", "ok"); }}>Duplicate</button>
+                <button className="danger" onClick={() => { close(); del(); }}>Delete<small>You can undo for a few seconds</small></button>
+              </>)}
+            </Menu>
+          </span>
+        </div>
+        {editing ? (
+          <form className="rename" onClick={stop} onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <input autoFocus type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onBlur={save}
+                   onKeyDown={(e) => e.key === "Escape" && (setName(draft.name), setEditing(false))} aria-label="Draft name" />
+          </form>
+        ) : <b className="card-title-text">{draft.name}</b>}
+        <span className="jcard-meta"><PlatformIcon p={draft.inputs.platform} size={13} /> {host}</span>
+        <span className="jcard-foot"><span className="draft-continue">Continue <Icon.arrow /></span><span>saved {timeAgo(draft.updated_at)}</span></span>
       </div>
-      {editing ? (
-        <form className="rename" onClick={stop} onSubmit={(e) => { e.preventDefault(); save(); }}>
-          <input autoFocus type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onBlur={save}
-                 onKeyDown={(e) => e.key === "Escape" && (setName(draft.name), setEditing(false))} aria-label="Draft name" />
-        </form>
-      ) : <b className="card-title-text">{draft.name}</b>}
-      <span className="muted small">{variant === "reel" ? `${host} · ` : ""}saved {timeAgo(draft.updated_at)}</span>
-      {variant === "reel" && <span className="reel-time draft-continue">Continue <Icon.arrow /></span>}
     </div>
   );
 }

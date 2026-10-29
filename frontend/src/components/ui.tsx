@@ -255,3 +255,41 @@ export function useMinute(): Date {
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30_000); return () => clearInterval(t); }, []);
   return now;
 }
+
+// ---------------------------------------------------------------- platforms: icon + frame shape
+type PlatformKind = "ig" | "tiktok" | "yt" | "ytl" | "meta" | "tv";
+export function platformKind(p: string): PlatformKind {
+  const s = p.toLowerCase();
+  if (s.includes("tiktok")) return "tiktok";
+  if (s.includes("short")) return "yt";
+  if (s.includes("youtube")) return "ytl";
+  if (s.includes("meta") || s.includes("facebook")) return "meta";
+  if (s.includes("tv")) return "tv";
+  return "ig";
+}
+const ASPECT: Record<PlatformKind, string> = { ig: "9 / 16", tiktok: "9 / 16", yt: "9 / 16", ytl: "16 / 9", meta: "4 / 5", tv: "16 / 9" };
+export function PlatformIcon({ p, size = 15 }: { p: string; size?: number }) {
+  const k = platformKind(p);
+  const a = { ...P, width: size, height: size, viewBox: "0 0 24 24" };
+  if (k === "ig") return <svg {...a}><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.3" cy="6.7" r=".6" fill="currentColor" /></svg>;
+  if (k === "tiktok") return <svg {...a}><path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5" /><path d="M14 3c.5 2.6 2.4 4.4 5 4.6" /></svg>;
+  if (k === "yt" || k === "ytl") return <svg {...a}><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="m10.5 9.5 4 2.5-4 2.5z" fill="currentColor" /></svg>;
+  if (k === "meta") return <svg {...a}><path d="M3 15c0-4 2-7 4-7 3 0 5 8 8 8 2 0 3-2 3-4.5S17 7 15.5 7C12 7 10 16 7 16c-2 0-4-1-4-1z" /></svg>;
+  return <svg {...a}><rect x="3" y="5" width="18" height="12" rx="2" /><path d="M8 21h8M12 17v4" /></svg>;
+}
+
+/** A tiny "poster" of the ad: the platform's frame shape in the brand's colour, with platform and length. */
+export function Poster({ brand, platform, seconds, height = 96 }: { brand: string; platform: string; seconds: number; height?: number }) {
+  const h = hueOf(brand || "S");
+  const k = platformKind(platform);
+  const wide = k === "ytl" || k === "tv";
+  return (
+    <span className={`poster ${wide ? "wide" : ""}`} aria-hidden="true" style={{ height: wide ? height * 0.62 : height, aspectRatio: ASPECT[k],
+      background: `radial-gradient(120% 80% at 20% 0%, hsl(${h} 85% 66% / .95), transparent 60%), linear-gradient(160deg, hsl(${(h + 30) % 360} 70% 38%), hsl(${(h + 300) % 360} 60% 14%))` }}>
+      <span className="poster-p"><PlatformIcon p={platform} size={12} /></span>
+      <b className="poster-l">{(brand || "S").replace(/^www\./, "")[0]?.toUpperCase()}</b>
+      <span className="poster-d">{seconds}s</span>
+      <i className="poster-bar" />
+    </span>
+  );
+}
