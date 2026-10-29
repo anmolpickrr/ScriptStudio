@@ -21,6 +21,8 @@ const BUCKETS: { label: string; tone: string; match: (s: JobStatus) => boolean }
   { label: "Ready", tone: "lime", match: (s) => s === "ready" },
   { label: "Approved", tone: "ok", match: (s) => s === "approved" },
 ];
+const BRIEF_PROMPTS = ["Idea", "Key message", "Offer", "Audience", "Must say"];
+const EXAMPLE_BRIEF = "Idea: Karwa Chauth gifting film — after the fast, the husband surprises his wife with the cushion so she can finally rest.\nKey message: Comfort is the most thoughtful gift.\nOffer: Flat 20% off this week.\nAudience: Married couples 28–45 in metros.";
 const ENGINES: { key: Engine; logo: string; cls: string; short: string; hint: string }[] = [
   { key: "auto", logo: "S", cls: "ss", short: "ScriptStudio AI", hint: "Free and fully automatic" },
   { key: "chatgpt", logo: "G", cls: "gpt", short: "ChatGPT", hint: "Uses your ChatGPT plan" },
@@ -35,6 +37,7 @@ export default function Home() {
   const now = useMinute();
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const briefRef = useRef<HTMLTextAreaElement>(null);
   const startNew = () => { window.scrollTo({ top: 0, behavior: "smooth" }); setTimeout(() => formRef.current?.querySelector<HTMLInputElement>("input[type=url]")?.focus(), 350); };
   const [f, setF] = useState<JobInputs>(() => ({ ...EMPTY, ...pick(loadDraft()) }));
   const [touched, setTouched] = useState(false);
@@ -81,6 +84,22 @@ export default function Home() {
       saveDraft(EMPTY);
       nav(`/scripts/${job.id}`);
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
+  };
+
+  // the brief box grows with what's written (up to a comfortable height, then scrolls)
+  useEffect(() => {
+    const el = briefRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight + 2, 320)}px`;
+  }, [f.client_brief]);
+
+  // adds a labelled line to the brief and puts the cursor after it
+  const addPrompt = (x: string) => {
+    const cur = f.client_brief.replace(/\s+$/, "");
+    const next = `${cur}${cur ? "\n" : ""}${x}: `;
+    set("client_brief", next);
+    requestAnimationFrame(() => { const el = briefRef.current; if (el) { el.focus(); el.setSelectionRange(next.length, next.length); } });
   };
 
   const saveAsDraft = () => {
@@ -130,9 +149,21 @@ export default function Home() {
               {urlOk && <span className="composer-host"><Icon.check /> {hostOf(f.product_url)}</span>}
             </label>
             <div className="composer-brief-wrap">
-              <textarea aria-label="Client brief" className="composer-brief" rows={3} maxLength={20000} value={f.client_brief}
-                        placeholder="The brief: occasion or idea, the message, the offer, who it's for… e.g. “Karwa Chauth gifting film — husband surprises his wife with a comfort cushion after the fast.”"
+              <div className="brief-head">
+                <label htmlFor="composer-brief"><span aria-hidden="true">✍️</span> Client brief <i className="req" aria-hidden="true" /></label>
+                <span className="brief-tip">What's the ad about? 2–3 sentences is enough.</span>
+              </div>
+              <textarea id="composer-brief" ref={briefRef} className="composer-brief" rows={3} maxLength={20000} value={f.client_brief}
+                        placeholder="Paste the client's brief, or describe the idea in your own words — the story, the key message, the offer and who it's for."
                         onChange={(e) => set("client_brief", e.target.value)} />
+              {f.client_brief.trim().length < 200 && (
+                <div className="brief-prompts" aria-label="Add to the brief">
+                  <span className="bp-label">Add</span>
+                  {BRIEF_PROMPTS.filter((x) => !new RegExp(`(^|\\n)${x}:`, "i").test(f.client_brief)).map((x) => (
+                    <button type="button" key={x} className="bp-chip" onClick={() => addPrompt(x)}>+ {x}</button>))}
+                  {!f.client_brief.trim() && <button type="button" className="bp-chip example" onClick={() => set("client_brief", EXAMPLE_BRIEF)}>See an example</button>}
+                </div>
+              )}
               <div className="brief-tools">
                 <button type="button" className="tool-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="Fill the form from a brief document">
                   {importing ? <Spinner /> : <Icon.upload />} Import .docx</button>
