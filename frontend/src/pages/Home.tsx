@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { DraftCard, JobCard, useJobDelete } from "../components/Cards";
-import { LengthPicker, PlatformPicker, SizePicker, StoryFields } from "../components/Pickers";
+import { SpecBar } from "../components/Pickers";
 import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
 import { Draft, hasContent, listDrafts, saveNamedDraft } from "../drafts";
 import { useSession } from "../session";
@@ -31,7 +31,7 @@ const ENGINES: { key: Engine; logo: string; cls: string; short: string; hint: st
 
 
 export default function Home() {
-  const { options, config } = useSession();
+  const { config } = useSession();
   const nav = useNavigate();
   const toast = useToast();
   const now = useMinute();
@@ -172,34 +172,17 @@ export default function Home() {
                 <span className={`brief-count ${briefOk ? "ok" : ""}`}>{briefOk ? <><Icon.check /> Brief added</> : f.client_brief.trim() ? "Add a little more…" : ""}</span>
               </div>
             </div>
-            <StoryFields f={f} set={set} />
-            <div className="composer-opts">
-              <div className="opt-group">
-                <span className="opt-label">Platform</span>
-                <PlatformPicker value={f.platform} onChange={(v) => set("platform", v)} />
-                            </div>
-              <div className="opt-group">
-                <span className="opt-label">Length</span>
-                <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
-              </div>
-              <div className="opt-group">
-                <span className="opt-label">Size</span>
-                <SizePicker value={f.aspect_ratio} platformAspect={options!.platforms[f.platform]?.aspect || "9:16"} onChange={(v) => set("aspect_ratio", v)} />
-              </div>
-              <div className="opt-group">
-                <span className="opt-label">Writer</span>
-                <div className="writer-seg" role="radiogroup" aria-label="Who writes the script">
-                  {ENGINES.map((e) => (
-                    <button type="button" role="radio" aria-checked={f.engine === e.key} key={e.key} title={e.hint}
-                            className={f.engine === e.key ? "on" : ""} onClick={() => set("engine", e.key)}>
-                      <span className={`dotlogo ${e.cls}`}>{e.logo}</span>{e.short}
-                    </button>))}
-                </div>
-              </div>
-            </div>
+            <SpecBar f={f} set={set} />
             <div className="composer-foot">
+              <div className="writer-seg compact" role="radiogroup" aria-label="Who writes the script">
+                {ENGINES.map((e) => (
+                  <button type="button" role="radio" aria-checked={f.engine === e.key} key={e.key} title={e.hint}
+                          className={f.engine === e.key ? "on" : ""} onClick={() => set("engine", e.key)}>
+                    <span className={`dotlogo ${e.cls}`}>{e.logo}</span><span className="wl">{e.short}</span>
+                  </button>))}
+              </div>
               <div className="composer-actions">
-                <Link className="btn ghost sm" to="/new">More details</Link>
+                <Link className="btn ghost sm more-link" to="/new">More details</Link>
                 <button className="btn primary write-btn" disabled={busy} title={`${isMac ? "⌘" : "Ctrl"} + Enter`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`}
                   {!busy && <span className="kbd-hint">{isMac ? "⌘" : "Ctrl"} ↵</span>}</button>
               </div>

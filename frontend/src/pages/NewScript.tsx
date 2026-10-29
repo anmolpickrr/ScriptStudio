@@ -4,7 +4,7 @@ import { api } from "../api";
 import { buildJobBody, clearDraft, composeBrief, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { deleteDraft, getDraft, hasContent, saveNamedDraft } from "../drafts";
 import { ENGINE_NAME, Icon, Spinner, TagInput, useToast } from "../components/ui";
-import { LengthPicker, PlatformPicker, SizePicker, StoryFields } from "../components/Pickers";
+import { SpecBar } from "../components/Pickers";
 import { useSession } from "../session";
 import { SheetPreview } from "./Home";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
@@ -160,27 +160,16 @@ export default function NewScript() {
                         placeholder="Paste the brief: the occasion or idea, the message, the offer, anything the client asked for. E.g. “Karwa Chauth gifting film — husband surprises wife with a comfort cushion after the fast.”"
                         onChange={(e) => set("client_brief", e.target.value)} onBlur={blur("client_brief")} />
             </Field>
-            <Field label="Story">
-              <StoryFields f={f} set={set} />
-            </Field>
-            <Field label="Platform">
-              <PlatformPicker value={f.platform} onChange={(v) => set("platform", v)} />
-            </Field>
-            <Field label="Duration">
-              <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
+            <Field label="Format & story" hint="Platform, length, frame size, hook, CTA, tone and occasion. Click any pill to change it.">
+              <SpecBar f={f} set={set} />
             </Field>
             <div className="grid2">
-              <Field label="Size">
-                <SizePicker value={f.aspect_ratio} platformAspect={plat?.aspect || "9:16"} onChange={(v) => set("aspect_ratio", v)} />
-              </Field>
               <Field label="Subtitles">
                 <div className="seg-toggle" role="radiogroup" aria-label="Subtitles">
                   {[true, false].map((v) => (
                     <button type="button" role="radio" aria-checked={f.subtitles === v} key={String(v)} className={f.subtitles === v ? "on" : ""} onClick={() => set("subtitles", v)}>{v ? "Yes" : "No"}</button>))}
                 </div>
               </Field>
-            </div>
-            <div className="grid2">
               <Field id="language" label="Language">
                 <select id="language" value={f.language} onChange={(e) => set("language", e.target.value)}>
                   {Array.from(new Set([...options!.languages, f.language])).map((l) => <option key={l}>{l}</option>)}
