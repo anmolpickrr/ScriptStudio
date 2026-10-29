@@ -7,6 +7,7 @@ quote against the page text in code. Facts that fail verification are kept
 for transparency but never reach the writer.
 """
 from __future__ import annotations
+import time
 
 import json
 import re
@@ -35,6 +36,13 @@ class PageSource(BaseModel):
 
 def fetch(url: str, client: Optional[httpx.Client] = None) -> PageSource:
     resp = safe_get(url, client)
+    # busy stores answer "too many requests" or "unavailable" for a moment; wait briefly and ask again
+    for wait in (2, 5):
+        if resp.status_code not in (429, 503):
+            break
+        ra = resp.headers.get("retry-after", "")
+        time.sleep(min(float(ra), 8) if ra.isdigit() else wait)
+        resp = safe_get(url, client)
     resp.raise_for_status()
     src = parse_html(resp.url, resp.text)
     shopify = _try_shopify(client, resp.url)

@@ -127,7 +127,8 @@ jobs:
           log() { echo "$*" | tee -a out/diag.txt; }; fail=0
           H=(-A "$UA" -c jar -b jar -H "X-Requested-With: scriptwright" -H "Content-Type: application/json")
           BODY=$(jq -n --arg u "$PRODUCT" '{product_url:$u, engine:"claude", platform:"instagram_reels", duration_sec:30,
-            client_brief:"Launch a 30-second Reel for first-time buyers who want everyday comfort. Drive first purchase."}')
+            client_brief:"Launch a 30-second Reel for first-time buyers who want everyday comfort. Drive first purchase.",
+            product_copy:"Tree Runners for men. Breathable, lightweight sneakers made with eucalyptus tree fiber. Machine washable."}')
           ID=$(curl -sS -m 90 "${H[@]}" -X POST "$BASE/api/jobs" -d "$BODY" | jq -r '.id // empty')
           for i in $(seq 1 30); do S=$(curl -sS -m 60 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID" | jq -r .status); [[ "$S" =~ ^(queued|running)$ ]] || break; sleep 3; done
           J=$(curl -sS -m 60 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID")
