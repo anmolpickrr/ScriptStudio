@@ -965,3 +965,38 @@ details.manual summary { cursor: pointer; color: var(--text-2); font-size: 12.5p
 .bp-chip.example:hover { background: var(--violet-soft); }
 .composer:focus-within .brief-head label { color: var(--text); }
 .composer-brief-wrap .composer-brief { overflow-y: auto; transition: height .15s var(--ease); }
+
+/* v5 — one element family: line icons in soft tiles, one toggle style for every choice */
+.gl { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; flex: none; color: var(--violet-2); background: var(--violet-soft); box-shadow: inset 0 0 0 1px rgba(139, 107, 255, .22); font-size: 0; }
+.gl svg { width: 18px; height: 18px; }
+.gl.lg { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 12px; }
+.gl.lg svg { width: 26px; height: 26px; }
+.gl.bad { color: var(--bad); background: rgba(255, 107, 122, .12); box-shadow: inset 0 0 0 1px rgba(255, 107, 122, .25); }
+.gl.warn { color: var(--warn); background: var(--warn-soft); box-shadow: inset 0 0 0 1px rgba(255, 189, 74, .25); }
+.empty .art.gl { animation: none; font-size: 0; }
+.banner > .gl { width: 30px; height: 30px; border-radius: 9px; } .banner > .gl svg { width: 16px; height: 16px; }
+.empty-desk .gl, .col-empty .gl { font-size: 0; filter: none; opacity: 1; }
+.col-empty .gl { margin: 0 auto 8px; display: grid; }
+.composer-ic { display: grid; place-items: center; color: var(--violet-2); } .composer-ic svg { width: 18px; height: 18px; }
+.brief-head label svg { width: 14px; height: 14px; color: var(--violet-2); }
+.j-ic { display: grid; place-items: center; color: var(--violet-2); font-size: 0; } .j-ic svg { width: 24px; height: 24px; }
+.note-card b { display: inline-flex; align-items: center; gap: 6px; } .note-card b svg { width: 16px; height: 16px; color: var(--violet-2); }
+
+.seg-toggle { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 12px; background: var(--inset); border: 1px solid var(--line); max-width: 100%; }
+.seg-toggle button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 11px; border: 0; border-radius: 9px; background: none; color: var(--text-2); font: 600 12.5px var(--font); cursor: pointer; white-space: nowrap; transition: background .2s, color .2s, box-shadow .2s; }
+.seg-toggle button svg { color: currentColor; opacity: .75; }
+.seg-toggle button:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
+.seg-toggle button.on, .writer-seg button.on { background: var(--text); color: var(--bg); box-shadow: 0 4px 14px -6px rgba(255, 255, 255, .35); }
+.seg-toggle button.on svg { opacity: 1; }
+.writer-seg button.on .dotlogo { opacity: 1; }
+.seg-toggle .ratio { display: inline-block; border: 1.6px solid currentColor; border-radius: 3px; opacity: .8; }
+.seg-toggle .def { font-size: 10px; font-weight: 600; opacity: .6; margin-left: -2px; }
+.len-pick { gap: 3px; }
+
+.track.mini { margin: 0 0 22px; }
+.track.mini .node { width: 30px; height: 30px; border-radius: 10px; }
+.track.mini::before, .track.mini .track-fill { top: 14px; left: 15px; right: 15px; }
+.track.mini .track-fill { width: calc((100% - 30px) * var(--pct) / 100); }
+.track.mini .lbl { font-size: 12px; }
+
+.lib-hook { height: auto; min-height: 26px; padding: 4px 10px; line-height: 1.35; white-space: normal; border-radius: 10px; }

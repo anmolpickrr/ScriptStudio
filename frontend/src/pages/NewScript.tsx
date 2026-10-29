@@ -4,7 +4,7 @@ import { api } from "../api";
 import { buildJobBody, clearDraft, composeBrief, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { deleteDraft, getDraft, hasContent, saveNamedDraft } from "../drafts";
 import { ENGINE_NAME, Icon, Spinner, TagInput, useToast } from "../components/ui";
-import { LengthPicker, StoryFields } from "../components/Pickers";
+import { LengthPicker, PlatformPicker, SizePicker, StoryFields } from "../components/Pickers";
 import { useSession } from "../session";
 import { SheetPreview } from "./Home";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
@@ -106,7 +106,7 @@ export default function NewScript() {
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
   };
 
-  const cta = f.engine === "auto" ? "Generate script" : `Prepare ${ENGINE_NAME[f.engine]} prompt`;
+  const cta = f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`;
   const engine = ENGINES.find((e) => e.key === f.engine)!;
 
   return (
@@ -164,19 +164,19 @@ export default function NewScript() {
               <StoryFields f={f} set={set} />
             </Field>
             <Field label="Platform">
-              <div className="options" role="radiogroup" aria-label="Platform">
-                {Object.entries(options!.platforms).map(([k, p]) => (
-                  <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`opt sm ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>{p.label}</button>))}
-              </div>
+              <PlatformPicker value={f.platform} onChange={(v) => set("platform", v)} />
+            </Field>
+            <Field label="Duration">
+              <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
             </Field>
             <div className="grid2">
-              <Field label="Duration">
-                <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
+              <Field label="Size">
+                <SizePicker value={f.aspect_ratio} platformAspect={plat?.aspect || "9:16"} onChange={(v) => set("aspect_ratio", v)} />
               </Field>
               <Field label="Subtitles">
-                <div className="options" role="radiogroup" aria-label="Subtitles">
+                <div className="seg-toggle" role="radiogroup" aria-label="Subtitles">
                   {[true, false].map((v) => (
-                    <button type="button" role="radio" aria-checked={f.subtitles === v} key={String(v)} className={`opt sm ${f.subtitles === v ? "on" : ""}`} onClick={() => set("subtitles", v)}>{v ? "Yes" : "No"}</button>))}
+                    <button type="button" role="radio" aria-checked={f.subtitles === v} key={String(v)} className={f.subtitles === v ? "on" : ""} onClick={() => set("subtitles", v)}>{v ? "Yes" : "No"}</button>))}
                 </div>
               </Field>
             </div>
@@ -302,7 +302,7 @@ export default function NewScript() {
       </div>
 
       <div className="mobile-cta">
-        <div className="grow">{ready ? `${ENGINE_NAME[f.engine]} · ${plat?.label} · ${f.duration_sec}s` : "Add a product link and brief to continue"}</div>
+        <div className="grow">{ready ? `${ENGINE_NAME[f.engine]} · ${plat?.label} · ${f.duration_sec}s · ${f.aspect_ratio || plat?.aspect}` : "Add a product link and brief to continue"}</div>
         <button type="button" className="icon-btn lg" aria-label="Save as draft" title="Save as draft" onClick={saveAsDraft}><Icon.save /></button>
         <button className="btn primary" disabled={busy}>{busy && <Spinner />}{busy ? "Starting…" : f.engine === "auto" ? "Generate" : "Prepare prompt"}</button>
       </div>

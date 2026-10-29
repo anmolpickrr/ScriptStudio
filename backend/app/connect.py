@@ -56,7 +56,7 @@ def task(code: str, submit_hint: str) -> dict:
         "kind": "revision" if job.relay.kind == "revise" else "new script",
         "brand": brand, "product_url": job.inputs.product_url,
         "instructions": prompt + f"\n\nWHEN YOU ARE DONE: {submit_hint} Work quickly: do not write the script, a plan "
-                                 "or the JSON in the chat first — put it straight into the submission. If the "
+                                 "or the JSON in the chat first. Put it straight into the submission. If the "
                                  "submission returns problems, fix exactly those and submit again.",
     }
 

@@ -40,6 +40,31 @@ Words
 - Don't turn the VO into a list of specs. Pick the one or two facts that matter most to this audience and dramatise
   them; a spec read aloud is not a benefit.
 
+Creative thinking (think like a senior creative team, not a template)
+- Start from the audience: what do they already feel, believe or put up with before this ad? Build the hook on that
+  insight. A real moment from their life beats a statement about the product.
+- Find the angle nobody else would write. Before settling, picture the obvious version of this ad, then go somewhere
+  more specific: a sharper situation, an unexpected point of view, a detail only this product could own.
+- Write for the platform: Reels/TikTok/Shorts feel native and creator-shot (talk to camera, POV, quick cuts, sound
+  that matters in the first second); YouTube in-stream earns attention before the skip button; Meta feed works
+  sound-off with strong supers; TV/CTV gives the story room and a clear brand moment.
+- Emotion first, then proof. Let the viewer feel the problem or the pleasure, then show the product earning its place.
+- Pace with intent: fast where energy matters, a held beat where the emotion lands. Vary scene lengths.
+- Dialogue sounds like people overheard, not people performing an ad: interruptions, half-sentences, specific
+  everyday words, the way this audience actually talks (Hinglish if that is how they speak and the language allows).
+- The CTA follows naturally from the story's last beat and tells the viewer exactly what to do.
+- Keep the brand's voice consistent from the first line to the last.
+
+Voice (it must read as written by a person)
+- Plain, specific, conversational language. Concrete nouns and verbs over adjectives.
+- No AI-sounding phrases: "elevate", "unleash", "dive into", "discover the", "indulge in", "embrace", "redefine",
+  "imagine a world", "ever wondered", "in a world where", "you deserve", "not just X, it's Y", "the perfect blend",
+  "crafted with", "meticulously", "testament to", "next level", "must-have", "holy grail", "treat yourself".
+- Punctuation a human writer uses: full stops and commas. Do not use em dashes or en dashes in VO, dialogue or
+  on-screen text. No semicolons in spoken lines. No emojis, hashtags or exclamation marks unless the brief asks.
+- Don't open lines with "So," "Introducing" or a rhetorical question every time. Don't stack three adjectives.
+- Vary sentence length. One idea per line. If it sounds like a brochure or a chatbot, rewrite it.
+
 Product truth
 - Every product claim, number, ingredient, spec, price or certification must come from a VERIFIED
   fact and the scene must list that fact id in product_fact_ids. If a fact you want doesn't exist, you
@@ -84,7 +109,7 @@ VERIFIED PRODUCT FACTS. Report every place where:
 - information needed to write the script is missing  (minor, or major if it blocks the hook/CTA),
 - mandatories or exclusions contradict each other or the platform.
 For each, give a concrete suggestion (what to ask the client, or the safe fallback the script will use).
-The client brief is the source of truth for campaign details — CTA wording and destination (URLs, handles, store
+The client brief is the source of truth for campaign details. CTA wording and destination (URLs, handles, store
 names), offers, promo codes, hashtags, launch dates and mandatories. Do NOT flag those for being absent from the
 product page; only flag them if the product page actively contradicts them.
 Return an empty list if there is genuinely nothing to flag. Do not invent problems."""
@@ -140,8 +165,8 @@ Format obligations
   clothed". Use "Product only (no talent)" when nobody appears.
 - `product_line`: the product name followed by its key verified features in brackets, e.g.
   "Stride Comfort Cushion (memory foam, 27° angle, zip-off linen cover)". Verified facts only.
-- `idea`: the core idea — a short quoted tagline in the script's language, then one or two sentences on the story.
-- `continuity`: items written as "Label: detail" — one per character (by name or role: look, age, wardrobe, mood),
+- `idea`: the core idea. A short quoted tagline in the script's language, then one or two sentences on the story.
+- `continuity`: items written as "Label: detail", one per character (by name or role: look, age, wardrobe, mood),
   then props/wrapping, "Product: <the real product exactly as on the product page; use the real product images as
   reference; never invent or alter it>", and "Setting: <location, time of day, light>".
 - Characters' names are their on-screen role ("Wife", "Husband", "Creator") so lines read as VO (Wife).
@@ -166,7 +191,7 @@ Score 1-5 (5 = would ship to the client as-is):
   invented packaging or features.
 Findings: be specific (scene number, exact problem, exact fix - rewrite the line if it's a words problem).
 Severity: blocker = factually wrong/unsafe/off-brief; major = would be sent back by a client; minor = polish.
-Calibrate: 5 means a top agency would ship it untouched — rare. 4 = strong with small fixes. 3 = solid but generic or
+Calibrate: 5 means a top agency would ship it untouched, which is rare. 4 = strong with small fixes. 3 = solid but generic or
 flawed. Most first drafts land at 3–4 on several dimensions. Always look for: generic hooks, spec-list VO, supers that
 just repeat the VO, product entering without a reason, weak or bolted-on endings.
 Don't pad with praise or invent problems; if it's genuinely excellent, say so with few findings.

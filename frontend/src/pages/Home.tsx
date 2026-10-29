@@ -3,17 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { DraftCard, JobCard, useJobDelete } from "../components/Cards";
-import { LengthPicker, StoryFields } from "../components/Pickers";
-import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, PlatformIcon, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
+import { LengthPicker, PlatformPicker, SizePicker, StoryFields } from "../components/Pickers";
+import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
 import { Draft, hasContent, listDrafts, saveNamedDraft } from "../drafts";
 import { useSession } from "../session";
 import type { Engine, JobInputs, JobStatus, JobSummary } from "../types";
 
 const STEPS = [
-  { icon: "🔗", title: "Share the product", text: "A product link and the client's brief, or import the brief as a .docx." },
-  { icon: "🔍", title: "Facts get checked", text: "Every claim is matched to the product page. Gaps are flagged, never invented." },
-  { icon: "🎬", title: "Script is written", text: "Concepts, labelled scenes, VO and on-screen text, then an editorial review." },
-  { icon: "📄", title: "Export & share", text: "One click to Word or Google Docs, in your script-sheet format." },
+  { icon: "link" as const, title: "Share the product", text: "A product link and the client's brief, or import the brief as a .docx." },
+  { icon: "shield" as const, title: "Facts get checked", text: "Every claim is matched to the product page. Gaps are flagged, never invented." },
+  { icon: "pen" as const, title: "Script is written", text: "Concepts, labelled scenes, VO and on-screen text, then an editorial review." },
+  { icon: "share" as const, title: "Export & share", text: "One click to Word or Google Docs, in your script-sheet format." },
 ];
 const BUCKETS: { label: string; tone: string; match: (s: JobStatus) => boolean }[] = [
   { label: "In progress", tone: "violet", match: (s) => ["queued", "running", "awaiting_input"].includes(s) },
@@ -22,7 +22,7 @@ const BUCKETS: { label: string; tone: string; match: (s: JobStatus) => boolean }
   { label: "Approved", tone: "ok", match: (s) => s === "approved" },
 ];
 const BRIEF_PROMPTS = ["Idea", "Key message", "Offer", "Audience", "Must say"];
-const EXAMPLE_BRIEF = "Idea: Karwa Chauth gifting film — after the fast, the husband surprises his wife with the cushion so she can finally rest.\nKey message: Comfort is the most thoughtful gift.\nOffer: Flat 20% off this week.\nAudience: Married couples 28–45 in metros.";
+const EXAMPLE_BRIEF = "Idea: Karwa Chauth gifting film. After the fast, the husband surprises his wife with the cushion so she can finally rest.\nKey message: Comfort is the most thoughtful gift.\nOffer: Flat 20% off this week.\nAudience: Married couples 28–45 in metros.";
 const ENGINES: { key: Engine; logo: string; cls: string; short: string; hint: string }[] = [
   { key: "auto", logo: "S", cls: "ss", short: "ScriptStudio AI", hint: "Free and fully automatic" },
   { key: "chatgpt", logo: "G", cls: "gpt", short: "ChatGPT", hint: "Uses your ChatGPT plan" },
@@ -143,14 +143,14 @@ export default function Home() {
           <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>
             <label className={`composer-url ${f.product_url && !urlOk ? "bad" : ""}`}>
-              <span className="composer-ic" aria-hidden="true">🔗</span>
+              <span className="composer-ic" aria-hidden="true"><Icon.link /></span>
               <input type="url" inputMode="url" aria-label="Product link" placeholder="Paste the product link — https://brand.com/products/…"
                      value={f.product_url} onChange={(e) => set("product_url", e.target.value)} />
               {urlOk && <span className="composer-host"><Icon.check /> {hostOf(f.product_url)}</span>}
             </label>
             <div className="composer-brief-wrap">
               <div className="brief-head">
-                <label htmlFor="composer-brief"><span aria-hidden="true">✍️</span> Client brief <i className="req" aria-hidden="true" /></label>
+                <label htmlFor="composer-brief"><Icon.pen /> Client brief <i className="req" aria-hidden="true" /></label>
                 <span className="brief-tip">What's the ad about? 2–3 sentences is enough.</span>
               </div>
               <textarea id="composer-brief" ref={briefRef} className="composer-brief" rows={3} maxLength={20000} value={f.client_brief}
@@ -175,15 +175,15 @@ export default function Home() {
             <div className="composer-opts">
               <div className="opt-group">
                 <span className="opt-label">Platform</span>
-                <div className="chipset" role="radiogroup" aria-label="Platform">
-                  {Object.entries(options!.platforms).slice(0, 4).map(([k, p]) => (
-                    <button type="button" role="radio" aria-checked={f.platform === k} key={k} className={`chip-opt icon ${f.platform === k ? "on" : ""}`} onClick={() => set("platform", k)}>
-                      <PlatformIcon p={p.label} size={14} />{p.label}</button>))}
-                </div>
-              </div>
+                <PlatformPicker value={f.platform} onChange={(v) => set("platform", v)} />
+                            </div>
               <div className="opt-group">
                 <span className="opt-label">Length</span>
                 <LengthPicker value={f.duration_sec} onChange={(v) => set("duration_sec", v)} />
+              </div>
+              <div className="opt-group">
+                <span className="opt-label">Size</span>
+                <SizePicker value={f.aspect_ratio} platformAspect={options!.platforms[f.platform]?.aspect || "9:16"} onChange={(v) => set("aspect_ratio", v)} />
               </div>
               <div className="opt-group">
                 <span className="opt-label">Writer</span>
@@ -233,7 +233,7 @@ export default function Home() {
         {jobs === null ? (
           <div className="reel">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={150} />)}</div>
         ) : shownJobs.length + shownDrafts.length === 0 ? (
-          <div className="empty-desk"><span>{filter === "drafts" ? "📝" : "✍️"}</span><div>
+          <div className="empty-desk"><span className="gl">{filter === "drafts" ? <Icon.doc /> : <Icon.pen />}</span><div>
             <b>{filter === "drafts" ? "No saved drafts." : filter === "all" ? "Your desk is clear." : `Nothing in “${filter}”.`}</b>{" "}
             {filter === "drafts" ? "Use “Save draft” in the composer to keep a brief for later." : "Write your first script above — it appears here as it's written."}</div>
             <button className="btn sm" onClick={startNew}><Icon.plus /> New script</button></div>
@@ -256,7 +256,7 @@ export default function Home() {
         <ol className="journey">
           {STEPS.map((st, i) => (
             <li key={st.title} style={{ animationDelay: `${i * 90}ms` }}>
-              <span className="j-node"><span className="j-ic" aria-hidden="true">{st.icon}</span><span className="j-n">{i + 1}</span></span>
+              <span className="j-node"><span className="j-ic" aria-hidden="true">{Icon[st.icon]()}</span><span className="j-n">{i + 1}</span></span>
               <b>{st.title}</b><span>{st.text}</span>
             </li>
           ))}
@@ -268,8 +268,8 @@ export default function Home() {
 
 /** The composer's fields only, so the full form's other answers are never overwritten. */
 function pick(f: JobInputs): Partial<JobInputs> {
-  const { product_url, client_brief, platform, duration_sec, engine, theme, hook_type, cta, tone } = f;
-  return { product_url, client_brief, platform, duration_sec, engine, theme, hook_type, cta, tone };
+  const { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone } = f;
+  return { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone };
 }
 
 /** A live miniature of the script sheet you'll get, filled in as you type. */
@@ -280,7 +280,7 @@ export function SheetPreview({ f, compact }: { f: JobInputs; compact?: boolean }
   const brand = f.brand_name || (host ? host.split(".")[0].replace(/^./, (c) => c.toUpperCase()) : "");
   const rows: [string, string][] = [
     ["Model", f.creative_direction], ["Language", f.language], ["Subtitle", f.subtitles ? "Yes" : "No"],
-    ["Format", plat ? `${plat.label} · ${f.duration_sec}s · ${plat.aspect}` : ""], ["Product Link", host], ["CTA", f.cta],
+    ["Format", plat ? `${plat.label} · ${f.duration_sec}s · ${f.aspect_ratio || plat.aspect}` : ""], ["Product Link", host], ["CTA", f.cta],
   ];
   const brief = f.client_brief.trim();
   return (

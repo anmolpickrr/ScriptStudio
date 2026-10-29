@@ -246,11 +246,20 @@ def check_language(script) -> list[QCFinding]:
                 out.append(QCFinding(check="dialogue_quality", severity="minor", scene=s.number,
                                      message=f"Scene {s.number} uses ad-speak cliché '{p}'.",
                                      fix="Say it the way a real person would."))
+        if re.search(r"[—–]", spoken_text(s) + " " + s.on_screen_text):
+            out.append(QCFinding(check="voice", severity="minor", scene=s.number,
+                                 message=f"Scene {s.number} uses a dash in a spoken line or super, which reads as AI-written.",
+                                 fix="Use a full stop or a comma instead."))
         for d in s.dialogue:
             if words(d.line) > 25:
                 out.append(QCFinding(check="dialogue_quality", severity="minor", scene=s.number,
                                      message=f"Scene {s.number}: a {words(d.line)}-word dialogue line reads like a speech.",
                                      fix="Break it up or cut it."))
+    stock = sum(1 for f in out if f.check == "dialogue_quality" and "cliché" in f.message)
+    if stock >= 3:
+        out.append(QCFinding(check="voice", severity="major",
+                             message=f"{stock} stock ad phrases across the script; it reads like generic AI copy.",
+                             fix="Rewrite those lines in plain, specific words this audience would actually say."))
     return out
 
 

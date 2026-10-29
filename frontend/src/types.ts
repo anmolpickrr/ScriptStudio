@@ -29,7 +29,7 @@ export interface Reference { kind: "url" | "note"; value: string; what_to_take: 
 
 export interface JobInputs {
   product_url: string; client_brief: string; product_copy: string; product_image_urls: string[];
-  platform: string; duration_sec: number; creative_direction: string; references: Reference[];
+  platform: string; duration_sec: number; aspect_ratio: string | null; creative_direction: string; references: Reference[];
   hook_type: string | null; theme: string | null; target_audience: string; tone: string; language: string;
   mandatories: string[]; exclusions: string[]; brand_name: string | null; format_id: string; concept_count: number;
   engine: Engine;

@@ -7,11 +7,11 @@ import { hostOf, Icon, Menu, Monogram, Skeleton, StatusBadge, timeAgo, useMedia,
 import { Draft, listDrafts } from "../drafts";
 import type { JobStatus, JobSummary } from "../types";
 
-const COLUMNS: { key: string; label: string; hint: string; empty: string; icon: string; match: (s: JobStatus) => boolean }[] = [
-  { key: "active", label: "In progress", hint: "Writing, or waiting for your chat", icon: "✍️", empty: "Scripts being written appear here, with live progress.", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
-  { key: "review", label: "Needs review", hint: "Flags or quality notes to check", icon: "🔎", empty: "All clear — nothing waiting for your review.", match: (s) => s === "needs_review" || s === "failed" },
-  { key: "ready", label: "Ready", hint: "Passed every quality gate", icon: "✅", empty: "Scripts that pass every quality gate land here.", match: (s) => s === "ready" },
-  { key: "approved", label: "Approved", hint: "In the house library", icon: "⭐", empty: "Approve a script to add it to the house library.", match: (s) => s === "approved" },
+const COLUMNS: { key: string; label: string; hint: string; empty: string; icon: keyof typeof Icon; match: (s: JobStatus) => boolean }[] = [
+  { key: "active", label: "In progress", hint: "Writing, or waiting for your chat", icon: "pen", empty: "Scripts being written appear here, with live progress.", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
+  { key: "review", label: "Needs review", hint: "Flags or quality notes to check", icon: "search", empty: "All clear. Nothing waiting for your review.", match: (s) => s === "needs_review" || s === "failed" },
+  { key: "ready", label: "Ready", hint: "Passed every quality gate", icon: "check", empty: "Scripts that pass every quality gate land here.", match: (s) => s === "ready" },
+  { key: "approved", label: "Approved", hint: "In the house library", icon: "star", empty: "Approve a script to add it to the house library.", match: (s) => s === "approved" },
 ];
 const VIEW_KEY = "ss:scripts-view";
 
@@ -67,7 +67,7 @@ export default function Scripts() {
       {jobs === null ? (
         <div className="board">{COLUMNS.map((c) => <div key={c.key} className="col"><Skeleton h={18} w="50%" /><Skeleton h={110} /><Skeleton h={110} /></div>)}</div>
       ) : jobs.length === 0 && drafts.length === 0 ? (
-        <div className="card empty"><div className="art">✍️</div><h2>No scripts yet</h2>
+        <div className="card empty"><div className="art gl lg"><Icon.pen /></div><h2>No scripts yet</h2>
           <p>Paste a product link and a brief to get your first ready-to-shoot script.</p>
           <Link className="btn primary" to="/">Write your first script</Link></div>
       ) : (
@@ -103,7 +103,7 @@ export default function Scripts() {
                   <section key={c.key} className={`col ${c.key}`} aria-label={c.label}>
                     <header><b>{c.label}</b><span className="col-n">{items.length}</span></header>
                     <p className="col-hint">{c.hint}</p>
-                    {items.length === 0 ? <div className="col-empty"><span>{c.icon}</span>{c.empty}</div> : items.map((j, n) => (
+                    {items.length === 0 ? <div className="col-empty"><span className="gl">{Icon[c.icon]()}</span>{c.empty}</div> : items.map((j, n) => (
                       <JobCard key={j.id} job={j} variant="tile" delay={n * 40} onDelete={(id) => remove([id])} />
                     ))}
                   </section>
@@ -125,7 +125,7 @@ export default function Scripts() {
                      onClick={() => (selecting ? toggle(j.id) : nav(`/scripts/${j.id}`))}
                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (selecting) toggle(j.id); else nav(`/scripts/${j.id}`); } }}>
                   {selecting ? <span className={`check ${sel.has(j.id) ? "on" : ""}`} aria-hidden="true"><Icon.check /></span> : <Monogram text={j.brand || hostOf(j.product_url)} size={36} />}
-                  <span className="grow"><b>{j.title || "Untitled (in progress)"}</b><small>{j.brand || hostOf(j.product_url)} · {j.platform} · {j.duration_sec}s</small></span>
+                  <span className="grow"><b>{j.title || `Script for ${j.brand || hostOf(j.product_url)}`}</b><small>{j.brand || hostOf(j.product_url)} · {j.platform} · {j.duration_sec}s</small></span>
                   <StatusBadge status={j.status} />
                   <span className="muted small nowrap rowcard-time">{timeAgo(j.updated_at)}</span>
                   {!selecting && (

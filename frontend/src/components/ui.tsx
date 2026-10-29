@@ -166,7 +166,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     return (
       <div className="center">
         <div className="card empty" style={{ maxWidth: 440 }}>
-          <div className="art">⚠️</div>
+          <div className="art gl lg bad"><Icon.alert /></div>
           <h2>Something went wrong on this page</h2>
           <p>Your work is saved. Reload to continue.</p>
           <button className="btn" onClick={() => window.location.reload()}>Reload</button>
@@ -203,6 +203,14 @@ export const Icon = {
   edit: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>,
   arrow: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" /></svg>,
   down: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="m6 9 6 6 6-6" /></svg>,
+  link: () => <svg viewBox="0 0 24 24" {...P} width="18" height="18"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" /><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" /></svg>,
+  pen: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>,
+  shield: () => <svg viewBox="0 0 24 24" {...P} width="18" height="18"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></svg>,
+  share: () => <svg viewBox="0 0 24 24" {...P} width="18" height="18"><path d="M12 15V3M7 8l5-5 5 5" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></svg>,
+  alert: () => <svg viewBox="0 0 24 24" {...P} width="18" height="18"><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg>,
+  info: () => <svg viewBox="0 0 24 24" {...P} width="18" height="18"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>,
+  clock: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>,
+  frame: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 9h16" /></svg>,
 };
 
 // ---------------------------------------------------------------- media query hook

@@ -22,7 +22,7 @@ export default function Library() {
         <p>Approved scripts. New scripts on the same platform and hook type learn from the closest ones.</p></div></div>
       {items === null ? <div className="concepts">{[0, 1, 2].map((i) => <div key={i} className="card stack-sm"><Skeleton w="70%" /><Skeleton h={12} w="40%" /><Skeleton h={48} /></div>)}</div>
         : items.length === 0 ? (
-          <div className="card empty"><div className="art">⭐</div><h2>Nothing approved yet</h2>
+          <div className="card empty"><div className="art gl lg"><Icon.star /></div><h2>Nothing approved yet</h2>
             <p>Open a script you're happy with and click <b>Approve</b>. It becomes a reference for future scripts.</p>
             <Link className="btn secondary" to="/scripts">Go to my scripts</Link></div>
         ) : (

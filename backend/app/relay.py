@@ -178,9 +178,9 @@ def _inputs_block(job: Job) -> str:
     lines = [
         f"PLATFORM: {plat['label']} | {i.aspect_ratio or plat['aspect']} | {i.duration_sec}s total | hook must land by "
         f"{plat['hook_window_sec']}s | max shot ~{plat['max_shot_sec']}s | {plat['notes']} | CTA style: {plat['cta_style']}",
-        f"LANGUAGE: {i.language} (spoken pace ~{playbook.wps(i.language)} words/second — VO/dialogue in each scene "
+        f"LANGUAGE: {i.language} (spoken pace ~{playbook.wps(i.language)} words/second. VO/dialogue in each scene "
         "must fit its duration)",
-        f"HOOK TYPE: {i.hook_type} — {playbook.HOOK_TYPES.get(i.hook_type, '')}" if i.hook_type else
+        f"HOOK TYPE: {i.hook_type}: {playbook.HOOK_TYPES.get(i.hook_type, '')}" if i.hook_type else
         "HOOK TYPE: choose the strongest per concept",
     ]
     for label, val in (("THEME", i.theme), ("TARGET AUDIENCE", i.target_audience), ("TONE", i.tone),
@@ -195,7 +195,7 @@ def _inputs_block(job: Job) -> str:
         lines.append("EXCLUSIONS (never include): " + json.dumps(i.exclusions, ensure_ascii=False))
     if i.references:
         lines.append("REFERENCES (style only, never product facts): " + "; ".join(
-            f"{r.value} — take: {r.what_to_take or 'n/a'}" for r in i.references))
+            f"{r.value}, take: {r.what_to_take or 'n/a'}" for r in i.references))
     return "\n".join(lines)
 
 
@@ -206,13 +206,13 @@ def build_full_prompt(job: Job, spec: FormatSpec, source_text: str) -> str:
 award-winning creative director and a senior scriptwriter. Produce a production-ready video ad script.
 
 WORK IN THIS ORDER (all inside one JSON answer):
-1. FACTS — from the PRODUCT SOURCE below only. Each fact needs a `quote` copied VERBATIM from the source (3–25 words, \
+1. FACTS: from the PRODUCT SOURCE below only. Each fact needs a `quote` copied VERBATIM from the source (3–25 words, \
 exact characters). Use ids F1, F2, … Never paraphrase inside `quote`. List what a writer needs but the page doesn't \
 state in `unknowns`.
-2. BRIEF — turn the client brief into `brief`. List every gap you filled in `brief.assumptions`.
-3. CONCEPTS — {n} genuinely different concepts (different story engines), each just a title, a one-line logline and \
+2. BRIEF: turn the client brief into `brief`. List every gap you filled in `brief.assumptions`.
+3. CONCEPTS: {n} genuinely different concepts (different story engines), each just a title, a one-line logline and \
 its hook line. Pick the strongest in `chosen_index` (0-based).
-4. SCRIPT — write the chosen concept as `script`, following every rule below. Every scene's `product_fact_ids` lists \
+4. SCRIPT: write the chosen concept as `script`, following every rule below. Every scene's `product_fact_ids` lists \
 the fact ids it uses; a product claim without a fact id is not allowed.
 
 FORMAT RULES
@@ -221,7 +221,7 @@ FORMAT RULES
 - `visual` = concrete, shootable action in 1–2 sentences (location, who, what we see of the product).
 - `vo` = voiceover, `dialogue` = on-camera lines (use "" / [] when none). Speakers must be in that scene's `characters`.
 - `sync_note` = under 12 words on why the picture belongs with the words (required when there is VO or dialogue).
-- `continuity` = wardrobe, props, product state, time of day — everything that must match between scenes.
+- `continuity` = wardrobe, props, product state, time of day, everything that must match between scenes.
 - The CTA is delivered in the final scene and matches the brief and platform.
 - Be concise everywhere: no field longer than it needs to be. At most 12 facts, the ones the script uses first.
 - `label` (per scene): the scene's role in 1–4 words, e.g. "Hook", "The surprise", "Reveal and benefits",
@@ -230,8 +230,8 @@ FORMAT RULES
   clothed". Use "Product only (no talent)" when nobody appears.
 - `product_line`: the product name followed by its key verified features in brackets, e.g.
   "Stride Comfort Cushion (memory foam, 27° angle, zip-off linen cover)". Verified facts only.
-- `idea`: the core idea — a short quoted tagline in the script's language, then one or two sentences on the story.
-- `continuity`: items written as "Label: detail" — one per character (by name or role: look, age, wardrobe, mood),
+- `idea`: the core idea. A short quoted tagline in the script's language, then one or two sentences on the story.
+- `continuity`: items written as "Label: detail", one per character (by name or role: look, age, wardrobe, mood),
   then props/wrapping, "Product: <the real product exactly as on the product page; use the real product images as
   reference; never invent or alter it>", and "Setting: <location, time of day, light>".
 - Characters' names are their on-screen role ("Wife", "Husband", "Creator") so lines read as VO (Wife).
@@ -332,7 +332,7 @@ def _parse(text: str, model: type[BaseModel]) -> BaseModel:
             where = ".".join(str(x) for x in err["loc"])
             problems.append(f"{where}: {err['msg']}" if where else err["msg"])
         if any(err["type"] == "json_invalid" for err in e.errors()):
-            raise RelayError("That isn't complete JSON — the reply may have been cut off. Ask your chat to "
+            raise RelayError("That isn't complete JSON. the reply may have been cut off. Ask your chat to "
                              "\"continue\" or \"send the full JSON again\", then paste the whole answer.")
         raise RelayError("The answer is missing some required parts (" + "; ".join(problems) + "). Ask your chat: "
                          "\"Return the complete JSON exactly matching the schema\", then paste it again.")

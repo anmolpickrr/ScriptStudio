@@ -69,11 +69,16 @@ HOOK_TYPES: dict[str, str] = {
 
 # VO/dialogue phrases that make a script read as generic AI copy.
 CLICHE_PHRASES = [
-    "introducing", "game-changer", "game changer", "say goodbye to", "unlock", "elevate your",
+    "introducing", "game-changer", "game changer", "say goodbye to", "unlock",
     "revolutionary", "in today's fast-paced world", "look no further", "take it to the next level",
     "whether you're", "transform your", "say hello to", "the secret to", "it's time to",
     "level up your", "experience the magic", "like never before", "one-stop solution",
     "seamless", "effortlessly", "embark", "journey", "boost your confidence",
+    # phrases that make copy read as machine-written
+    "elevate", "unleash", "dive into", "indulge in", "embrace the", "redefine", "imagine a world",
+    "ever wondered", "in a world where", "you deserve", "the perfect blend", "crafted with", "meticulously",
+    "testament to", "next level", "next-level", "must-have", "holy grail", "treat yourself", "pamper yourself",
+    "supercharge", "a symphony of", "tapestry", "nestled", "discover the secret",
 ]
 
 # Visual directions that read as AI-generated or cannot be honestly shot.

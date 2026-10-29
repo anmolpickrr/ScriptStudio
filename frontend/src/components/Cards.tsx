@@ -81,7 +81,7 @@ export function JobCard({ job, variant = "reel", onDelete, selectable, selected,
           </span>
         </div>
         <Link to={`/scripts/${job.id}`} className="card-title" onClick={(e) => { e.stopPropagation(); if (selectable) { e.preventDefault(); open(); } }}>
-          <b>{job.title || "Untitled (in progress)"}</b>
+          <b>{job.title || `Script for ${who}`}</b>
         </Link>
         <span className="jcard-meta"><PlatformIcon p={job.platform} size={13} /> {job.platform} · {job.duration_sec}s</span>
         <span className="jcard-foot"><span className="jcard-brand">{who}</span><span>{timeAgo(job.updated_at)}</span></span>
