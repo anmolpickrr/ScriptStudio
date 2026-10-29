@@ -131,15 +131,16 @@ export default function Home() {
 
   return (
     <div className="studio">
-      <section className="studio-hero">
-        <div className="studio-intro">
+      <header className="studio-head">
           <div className="hero-meta">
             <span className="eyebrow"><span className="pulse-dot" /> {greetingIST(now)}</span>
             <span className="clock-pill" title="India Standard Time">{istStamp(now)}</span>
           </div>
-          <h1 className="display">Write the ad.<br />We'll check <mark className="hl">every fact.</mark></h1>
+          <h1 className="display">Write the ad. We'll check <mark className="hl">every fact.</mark></h1>
           <p className="lede">Paste a product link and the client's brief. You get a ready-to-shoot script sheet, checked against the product page.</p>
-
+      </header>
+      <section className="studio-hero">
+        <div className="studio-intro">
           <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>
             <label className={`composer-url ${f.product_url && !urlOk ? "bad" : ""}`}>

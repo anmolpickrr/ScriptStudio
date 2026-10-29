@@ -1000,3 +1000,28 @@ details.manual summary { cursor: pointer; color: var(--text-2); font-size: 12.5p
 .track.mini .lbl { font-size: 12px; }
 
 .lib-hook { height: auto; min-height: 26px; padding: 4px 10px; line-height: 1.35; white-space: normal; border-radius: 10px; }
+
+/* v5.1 — compact, balanced hero: a one-line headline above, composer and live sheet side by side */
+.studio-head { margin-bottom: 22px; }
+.studio-head .display { font-size: clamp(28px, 3.1vw, 42px); letter-spacing: -1px; line-height: 1.1; margin-top: 10px; }
+.studio-head .display .hl { padding: 0 .16em; }
+.studio-head .lede { font-size: 15px; margin: 8px 0 0; max-width: 680px; }
+.studio-hero { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 32px; align-items: start; }
+.studio-intro { max-width: none; }
+.studio-hero > .sheet { margin-top: 0; max-width: 380px; justify-self: stretch; position: sticky; top: calc(var(--dock-h, 70px) + 24px); }
+.studio-hero > .sheet .sheet-paper { transform: rotate(1deg); padding: 18px 20px 20px; font-size: 12px; }
+.composer-url { min-height: 50px; }
+.brief-head { padding-top: 12px; }
+.composer-brief-wrap .composer-brief { min-height: 64px; padding-top: 6px; padding-bottom: 4px; }
+.brief-prompts { padding-bottom: 8px; }
+.brief-tools { padding-bottom: 8px; }
+.composer .story-fields { padding: 10px var(--g, 16px); gap: 8px; }
+.composer-opts { gap: 8px !important; padding: 10px var(--g, 16px) !important; }
+.composer-foot { padding-top: 10px; }
+.composer-note { margin-top: 10px; }
+@media (max-width: 1240px) {
+  .studio-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .studio-hero > .sheet { position: static; justify-self: center; max-width: 460px; }
+}
+.studio > .studio-head { margin-bottom: -34px; } /* the page's 56px section gap is too loose between headline and composer */
+.studio-head .lede { max-width: 860px; }

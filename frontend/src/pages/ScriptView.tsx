@@ -484,14 +484,36 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState(relay.last_error);
   const [busy, setBusy] = useState(false);
+  // ChatGPT can only call ScriptStudio from a custom GPT with Actions; otherwise the full brief travels by clipboard
+  const viaGpt = engine === "chatgpt" && /\/g\/g-/.test(gptUrl);
+  const assisted = engine === "chatgpt" && !viaGpt;
   const ask = engine === "chatgpt" ? `@ScriptStudio write script ${relay.code}` : `Use ScriptStudio to write script ${relay.code}`;
-  const ready = engine === "claude" || !!gptUrl;
 
   useEffect(() => { setError(relay.last_error); }, [relay.last_error]);
 
+  // after the brief goes to ChatGPT by clipboard, coming back to this tab picks up the copied reply
+  useEffect(() => {
+    if (!assisted || !sent) return;
+    const onFocus = async () => {
+      try {
+        const t = await navigator.clipboard.readText();
+        if (t && t !== relay.prompt && t.includes("{") && t.length > 300 && !busy) { setAnswer(t); submit(t); }
+      } catch { /* permission not granted: the paste button still works */ }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
   // one click: the request is typed into a new chat (and copied, in case the app ignores the prefill)
   const send = async () => {
-    if (!ready) { setSetup(true); return; }
+    if (assisted) {
+      try { await navigator.clipboard.writeText(relay.prompt); }
+      catch { setShowPrompt(true); toast("Your browser blocked copying. Copy the prompt below instead.", "error"); return; }
+      window.open("https://chatgpt.com/", "_blank", "noopener");
+      setSent(true);
+      toast("Brief copied. In ChatGPT, paste it (Ctrl/⌘ + V) and press Enter.", "ok");
+      return;
+    }
     try { await navigator.clipboard.writeText(ask); } catch { /* the prefill still works */ }
     // a custom GPT link opens a chat with that GPT; a plugin's page doesn't, so plugins start a normal new chat
     const base = engine === "claude" ? "https://claude.ai/new" : /\/g\/g-/.test(gptUrl) ? gptUrl : "https://chatgpt.com/";
@@ -530,16 +552,20 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
         <span className={`dotlogo ${engine === "claude" ? "claude" : "gpt"} handoff-logo`}>{engine === "claude" ? "C" : "G"}</span>
         <div className="grow">
           <div className="eyebrow">{relay.kind === "full" ? "Write with your plan" : `Revision · round ${relay.round}`}</div>
-          <h2>{sent ? `Waiting for ${name}…` : ready ? `Send this job to ${name}` : `Connect ${name} once to skip copy-paste`}</h2>
-          <p className="muted">{sent
-            ? `Press Enter in ${name}. It fetches the brief and product facts, writes the script and sends it back — this page updates by itself.`
-            : ready ? `${name} opens with the request already typed${engine === "chatgpt" ? " (check the ScriptStudio plugin is selected)" : ""}. Press Enter there; the finished script appears here automatically.`
-              : `A 2-minute, one-time setup lets ${name} fetch jobs and send scripts back by itself.`}</p>
+          <h2>{sent ? (assisted ? "Bring ChatGPT's reply back" : `Waiting for ${name}…`) : `Send this job to ${name}`}</h2>
+          <p className="muted">{assisted
+            ? (sent ? "When ChatGPT finishes, click the copy icon under its reply and come back to this tab. We pick it up and build the script, or use the button below."
+              : "We copy the full brief and product facts, and open ChatGPT. Paste it there (Ctrl/⌘ + V) and press Enter. No plugin needed.")
+            : sent ? `Press Enter in ${name}. It fetches the brief and product facts, writes the script and sends it back. This page updates by itself.`
+              : `${name} opens with the request already typed. Press Enter there; the finished script appears here automatically.`}</p>
           <div className="row" style={{ marginTop: 14 }}>
-            <button className="btn primary lg" onClick={send}>{sent ? <Icon.ext /> : <Icon.spark />} {sent ? `Open ${name} again` : ready ? `Send to ${name}` : `Set up ${name}`}</button>
-            {ready && <button className="btn ghost sm" onClick={() => setSetup(true)}>{engine === "claude" ? "First time? Connect Claude" : "Connection settings"}</button>}
+            {assisted && sent
+              ? <button className="btn primary lg" disabled={busy} onClick={pasteReply}>{busy ? <Spinner /> : <Icon.copy />} Paste ChatGPT's reply</button>
+              : <button className="btn primary lg" onClick={send}>{sent ? <Icon.ext /> : <Icon.spark />} {sent ? `Open ${name} again` : `Send to ${name}`}</button>}
+            {assisted && sent && <button className="btn ghost sm" onClick={send}><Icon.copy /> Copy the brief again</button>}
+            <button className="btn ghost sm" onClick={() => setSetup(true)}>{engine === "claude" ? "First time? Connect Claude" : "Connection settings"}</button>
           </div>
-          {sent && <div className="waiting"><span className="pulse-dot" /> Listening for the script from {name}…</div>}
+          {sent && !assisted && <div className="waiting"><span className="pulse-dot" /> Listening for the script from {name}…</div>}
           {error && <div className="banner bad" style={{ marginTop: 14, marginBottom: 0 }} role="alert"><span>⚠️</span><span>{error}</span></div>}
           <div className="code-chip" title="The job's private code">Job code <code>{relay.code}</code></div>
         </div>
