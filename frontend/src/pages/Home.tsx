@@ -183,7 +183,7 @@ export default function Home() {
               </div>
               <div className="composer-actions">
                 <Link className="btn ghost sm more-link" to="/new">More details</Link>
-                <button className="btn primary write-btn" disabled={busy} title={`${isMac ? "⌘" : "Ctrl"} + Enter`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`}
+                <button className="btn primary write-btn" disabled={busy} title={`Write with ${ENGINE_NAME[f.engine]} (${isMac ? "⌘" : "Ctrl"} + Enter)`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : "Write script"}
                   {!busy && <span className="kbd-hint">{isMac ? "⌘" : "Ctrl"} ↵</span>}</button>
               </div>
             </div>
@@ -205,7 +205,10 @@ export default function Home() {
             <h2 className="desk-title">On your desk</h2>
             <p className="muted small">{jobs === null ? "Loading…" : visible.length + drafts.length === 0 ? "Nothing yet — your scripts and drafts will appear here." : "Pick up where you left off."}</p>
           </div>
-          <Link to="/scripts" className="link-arrow">All scripts <Icon.arrow /></Link>
+          <div className="desk-actions">
+            <button className="btn sm secondary" onClick={startNew}><Icon.plus /> New script</button>
+            <Link to="/scripts" className="link-arrow">All scripts <Icon.arrow /></Link>
+          </div>
         </div>
         <div className="desk-pills" role="tablist" aria-label="Filter">
           {tabs.filter((t) => t.key === "all" || t.key === filter || t.n > 0).map((t) => (
@@ -225,12 +228,6 @@ export default function Home() {
           <div className="reel">
             {shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} delay={n * 40} />)}
             {shownJobs.map((j, n) => <JobCard key={j.id} job={j} delay={(n + shownDrafts.length) * 40} onDelete={(id) => remove([id])} />)}
-            {filter === "all" && shownJobs.length + shownDrafts.length < 4 && (
-              <button className="jcard ghost-card" onClick={startNew}>
-                <span className="ghost-plus"><Icon.plus /></span>
-                <span><b>Start a new script</b><small>Paste a link and a brief above</small></span>
-              </button>
-            )}
           </div>
         )}
       </section>

@@ -42,7 +42,7 @@ export default function Library() {
                 {a.editor_notes && <div className="hookline">“{a.editor_notes}”</div>}
                 <div className="foot lib-foot">
                   <Link className="btn sm secondary" to={`/scripts/${a.job_id}`}>Open script</Link>
-                  <button className="btn sm ghost" onClick={() => acts.editAsNew(a.job_id)} title="Starts a new script with this one's inputs">Write a similar one</button>
+                  <button className="btn sm ghost" onClick={() => acts.editAsNew(a.job_id)} title="Starts a new script with this one's inputs">Write similar</button>
                   {user?.admin && (
                     <button className="btn sm ghost danger-text" onClick={async () => {
                       if (!window.confirm("Remove this script from the house library? The script itself stays in Scripts.")) return;

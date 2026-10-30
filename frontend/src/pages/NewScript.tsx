@@ -106,7 +106,7 @@ export default function NewScript() {
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
   };
 
-  const cta = f.engine === "auto" ? "Write script" : `Prepare for ${ENGINE_NAME[f.engine]}`;
+  const cta = "Write script";
   const engine = ENGINES.find((e) => e.key === f.engine)!;
 
   return (
@@ -285,7 +285,7 @@ export default function NewScript() {
             </ul>
             <button className="btn primary lg block" disabled={busy}>{busy ? <Spinner /> : <Icon.spark />}{busy ? "Starting…" : cta}</button>
             <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={saveAsDraft}><Icon.save /> {draftId ? "Save draft" : "Save as draft"}</button>
-            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 3–6 minutes, you can leave the page.` : `Next: one prompt for ${ENGINE_NAME[f.engine]}.`}</p>
+            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 3–6 minutes, you can leave the page.` : `Next: ${ENGINE_NAME[f.engine]} writes it. You send it with one click.`}</p>
           </div>
         </aside>
       </div>

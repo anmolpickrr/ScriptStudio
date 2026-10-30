@@ -7,11 +7,11 @@ import { hostOf, Icon, Menu, Monogram, Skeleton, StatusBadge, timeAgo, useMedia,
 import { Draft, listDrafts } from "../drafts";
 import type { JobStatus, JobSummary } from "../types";
 
-const COLUMNS: { key: string; label: string; hint: string; empty: string; icon: keyof typeof Icon; match: (s: JobStatus) => boolean }[] = [
-  { key: "active", label: "In progress", hint: "Writing, or waiting for your chat", icon: "pen", empty: "Scripts being written appear here, with live progress.", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
-  { key: "review", label: "Needs review", hint: "Flags or quality notes to check", icon: "search", empty: "All clear. Nothing waiting for your review.", match: (s) => s === "needs_review" || s === "failed" },
-  { key: "ready", label: "Ready", hint: "Passed every quality gate", icon: "check", empty: "Scripts that pass every quality gate land here.", match: (s) => s === "ready" },
-  { key: "approved", label: "Approved", hint: "In the house library", icon: "star", empty: "Approve a script to add it to the house library.", match: (s) => s === "approved" },
+const COLUMNS: { key: string; label: string; hint: string; empty: string; icon: keyof typeof Icon; tone: string; match: (s: JobStatus) => boolean }[] = [
+  { key: "active", tone: "violet", label: "In progress", hint: "Writing, or waiting for your chat", icon: "pen", empty: "Scripts being written appear here, with live progress.", match: (s) => s === "queued" || s === "running" || s === "awaiting_input" },
+  { key: "review", tone: "warn", label: "Needs review", hint: "Flags or quality notes to check", icon: "search", empty: "All clear. Nothing waiting for your review.", match: (s) => s === "needs_review" || s === "failed" },
+  { key: "ready", tone: "lime", label: "Ready", hint: "Passed every quality gate", icon: "check", empty: "Scripts that pass every quality gate land here.", match: (s) => s === "ready" },
+  { key: "approved", tone: "ok", label: "Approved", hint: "In the house library", icon: "star", empty: "Approve a script to add it to the house library.", match: (s) => s === "approved" },
 ];
 const VIEW_KEY = "ss:scripts-view";
 
@@ -28,6 +28,7 @@ export default function Scripts() {
   const { hidden, remove } = useJobDelete();
   const [drafts, setDrafts] = useState<Draft[]>(listDrafts);
   const [selecting, setSelecting] = useState(false);
+  const [tab, setTab] = useState("all");
   const [sel, setSel] = useState<Set<string>>(new Set());
   useEffect(() => {
     const on = () => setDrafts(listDrafts());
@@ -50,7 +51,7 @@ export default function Scripts() {
   const needle = q.toLowerCase();
   const shown = (jobs || []).filter((j) => !hidden.has(j.id) && `${j.title} ${j.brand} ${j.product_url} ${j.platform}`.toLowerCase().includes(needle));
   const shownDrafts = drafts.filter((d) => `${d.name} ${d.inputs.product_url}`.toLowerCase().includes(needle));
-  const mode = narrow ? "list" : view;
+  const mode = narrow ? "board" : view;
 
   return (
     <>
@@ -65,7 +66,7 @@ export default function Scripts() {
       </div>
 
       {jobs === null ? (
-        <div className="board">{COLUMNS.map((c) => <div key={c.key} className="col"><Skeleton h={18} w="50%" /><Skeleton h={110} /><Skeleton h={110} /></div>)}</div>
+        <div className="reel">{[0, 1, 2].map((i) => <Skeleton key={i} h={118} />)}</div>
       ) : jobs.length === 0 && drafts.length === 0 ? (
         <div className="card empty"><div className="art gl lg"><Icon.pen /></div><h2>No scripts yet</h2>
           <p>Paste a product link and a brief to get your first ready-to-shoot script.</p>
@@ -76,39 +77,48 @@ export default function Scripts() {
             <label className="search"><Icon.search />
               <input type="search" placeholder="Search by title, brand or platform…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search scripts" />
             </label>
+            {mode === "board" && (
+              <div className="desk-pills grp-tabs" role="tablist" aria-label="Filter by status">
+                {[{ key: "all", label: "All", tone: "", n: shown.length + shownDrafts.length },
+                  { key: "drafts", label: "Drafts", tone: "draft", n: shownDrafts.length },
+                  ...COLUMNS.map((c) => ({ key: c.key, label: c.label, tone: c.tone, n: shown.filter((j) => c.match(j.status)).length }))]
+                  .filter((t) => t.key === "all" || t.key === tab || t.n > 0).map((t) => (
+                  <button key={t.key} role="tab" aria-selected={tab === t.key} className={`desk-pill ${t.tone} ${tab === t.key ? "on" : ""}`} onClick={() => setTab(t.key)}>
+                    {t.key !== "all" && <i className="pill-dot" />}{t.label}<b>{t.n}</b></button>))}
+              </div>
+            )}
             {mode === "list" && shown.length > 0 && (
               <button className={`btn sm ${selecting ? "secondary" : "ghost"}`} onClick={() => (selecting ? endSelect() : setSelecting(true))}>
                 <Icon.check /> {selecting ? "Done" : "Select"}</button>
             )}
             {!narrow && (
               <div className="seg-mini" role="radiogroup" aria-label="View">
-                <button role="radio" aria-checked={view === "board"} className={view === "board" ? "on" : ""} onClick={() => pickView("board")}><Icon.board /> Board</button>
+                <button role="radio" aria-checked={view === "board"} className={view === "board" ? "on" : ""} onClick={() => pickView("board")}><Icon.board /> Cards</button>
                 <button role="radio" aria-checked={view === "list"} className={view === "list" ? "on" : ""} onClick={() => pickView("list")}><Icon.list /> List</button>
               </div>
             )}
           </div>
 
           {shown.length + shownDrafts.length === 0 ? <div className="card empty slim"><p>No scripts match “{q}”.</p></div> : mode === "board" ? (
-            <div className={`board ${shownDrafts.length ? "with-drafts" : ""}`}>
-              {shownDrafts.length > 0 && (
-                <section className="col drafts" aria-label="Drafts">
-                  <header><b>Drafts</b><span className="col-n">{shownDrafts.length}</span></header>
-                  <p className="col-hint">Saved briefs, not written yet</p>
-                  {shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} variant="tile" delay={n * 40} />)}
+            tab === "all" ? (
+              <div className="reel">
+                {shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} delay={n * 30} />)}
+                {shown.map((j, n) => <JobCard key={j.id} job={j} delay={Math.min(n + shownDrafts.length, 12) * 30} onDelete={(id) => remove([id])} />)}
+              </div>
+            ) : <div className="groups">
+              {[{ key: "drafts", label: "Drafts", hint: "Saved briefs, not written yet", tone: "draft", n: shownDrafts.length },
+                ...COLUMNS.map((c) => ({ key: c.key, label: c.label, hint: c.hint, tone: c.tone, n: shown.filter((j) => c.match(j.status)).length }))]
+                .filter((g) => g.n > 0 && (tab === "all" || tab === g.key)).map((g) => (
+                <section key={g.key} className={`grp ${g.tone}`} aria-label={g.label}>
+                  <header className="grp-h"><i className="pill-dot" /><b>{g.label}</b><span className="col-n">{g.n}</span><small>{g.hint}</small></header>
+                  <div className="reel">
+                    {g.key === "drafts"
+                      ? shownDrafts.map((d, n) => <DraftCard key={d.id} draft={d} delay={n * 30} />)
+                      : shown.filter((j) => COLUMNS.find((c) => c.key === g.key)!.match(j.status)).map((j, n) => (
+                        <JobCard key={j.id} job={j} delay={n * 30} onDelete={(id) => remove([id])} />))}
+                  </div>
                 </section>
-              )}
-              {COLUMNS.map((c) => {
-                const items = shown.filter((j) => c.match(j.status));
-                return (
-                  <section key={c.key} className={`col ${c.key}`} aria-label={c.label}>
-                    <header><b>{c.label}</b><span className="col-n">{items.length}</span></header>
-                    <p className="col-hint">{c.hint}</p>
-                    {items.length === 0 ? <div className="col-empty"><span className="gl">{Icon[c.icon]()}</span>{c.empty}</div> : items.map((j, n) => (
-                      <JobCard key={j.id} job={j} variant="tile" delay={n * 40} onDelete={(id) => remove([id])} />
-                    ))}
-                  </section>
-                );
-              })}
+              ))}
             </div>
           ) : (
             <div className="rows">

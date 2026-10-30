@@ -435,7 +435,7 @@ function ReviseModal({ engine, onClose, onSubmit }: { engine: Job["inputs"]["eng
     <Modal title="Revise with notes" onClose={onClose} actions={<>
       <button className="btn ghost" onClick={onClose}>Cancel</button>
       <button className="btn primary" disabled={busy || text.trim().length < 5} onClick={async () => { setBusy(true); await onSubmit(text.trim()); setBusy(false); }}>
-        {busy && <Spinner />} {engine === "auto" ? "Revise script" : "Prepare revision prompt"}</button></>}>
+        {busy && <Spinner />} Revise script</button></>}>
       <p className="muted" style={{ marginTop: 0 }}>{engine === "auto"
         ? "Write notes as you would to a writer. The revision goes through the full quality review again."
         : `Write notes as you would to a writer. We'll turn them, plus any quality findings, into a revision prompt for ${ENGINE_NAME[engine]}.`}</p>

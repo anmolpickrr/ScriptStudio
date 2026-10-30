@@ -1085,3 +1085,29 @@ details.manual summary { cursor: pointer; color: var(--text-2); font-size: 12.5p
 .form .spec-bar { padding: 0; border: 0; }
 .composer-foot > .composer-actions { width: auto; flex: 0 1 auto; justify-content: flex-end; margin-left: auto; }
 @media (max-width: 640px) { .composer-foot > .composer-actions { width: 100%; flex: 1 1 100%; } }
+
+/* v6.1 — Scripts as compact status groups (no empty columns), slimmer desk and library cards */
+.toolbar { flex-wrap: wrap; gap: 10px; }
+.grp-tabs { order: 2; }
+.groups { display: flex; flex-direction: column; gap: 26px; }
+.grp-h { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 600 14px var(--display); }
+.grp-h small { font: 400 12.5px var(--font); color: var(--text-3); margin-left: 4px; }
+.grp-h .pill-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--text-3)); box-shadow: 0 0 8px var(--c, transparent); }
+.grp.draft { --c: #9aa4ff; } .grp.violet { --c: var(--violet); } .grp.warn { --c: var(--warn); } .grp.lime { --c: var(--lime); } .grp.ok { --c: var(--ok); }
+.reel { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.jcard { padding: 10px 12px 10px 10px; gap: 12px; }
+.jcard .card-title b { font-size: 14.5px; }
+.desk-head { align-items: center !important; }
+.desk-actions { display: flex; align-items: center; gap: 14px; }
+.desk { padding: 22px 24px 24px !important; }
+.desk .desk-pills { margin: 0; }
+.lib-card { padding: 14px; gap: 8px; }
+.lib-top { gap: 12px; }
+.lib-hook { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; height: 26px; line-height: 24px; padding: 0 10px; border-radius: 999px; }
+.lib-foot { margin-top: 4px; }
+.concepts { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .desk { padding: 18px 16px !important; } .desk-actions .btn { display: none; } }
+.grp-h .col-n { margin-left: 0; }
+.toolbar .search { order: 0; } .toolbar .grp-tabs { order: 1; } .toolbar .seg-mini { order: 2; margin-left: auto; }
+.lib-foot { flex-wrap: nowrap; } .lib-foot .danger-text { margin-left: auto; }
+@media (max-width: 900px) { .toolbar .search { flex: 1 1 100%; max-width: none; } }

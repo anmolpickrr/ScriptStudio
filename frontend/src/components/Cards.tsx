@@ -63,7 +63,7 @@ export function JobCard({ job, variant = "reel", onDelete, selectable, selected,
     <div className={`jcard jc-${variant} card-click ${selected ? "selected" : ""} st-${job.status}`} role="link" tabIndex={0}
          onClick={open} onKeyDown={onKey} style={{ animationDelay: `${delay}ms` }} aria-label={`Open ${job.title || "script"}`}>
       <span className="jcard-poster">
-        <Poster brand={who} platform={job.platform} seconds={job.duration_sec} height={variant === "reel" ? 104 : 84} />
+        <Poster brand={who} platform={job.platform} seconds={job.duration_sec} height={variant === "reel" ? 88 : 80} />
         {selectable && <span className={`check ${selected ? "on" : ""}`} aria-hidden="true"><Icon.check /></span>}
       </span>
       <div className="jcard-body">
@@ -101,7 +101,7 @@ export function DraftCard({ draft, variant = "reel", delay = 0 }: { draft: Draft
   return (
     <div className={`jcard jc-${variant} draft-card card-click`} role="link" tabIndex={0} style={{ animationDelay: `${delay}ms` }}
          onClick={() => !editing && openDraft(nav, draft.id)} onKeyDown={(e) => { if (!editing && e.key === "Enter") openDraft(nav, draft.id); }}>
-      <span className="jcard-poster"><span className="poster paper" style={{ height: variant === "reel" ? 104 : 84 }} aria-hidden="true"><i /><i /><i /><i /></span></span>
+      <span className="jcard-poster"><span className="poster paper" style={{ height: variant === "reel" ? 88 : 80 }} aria-hidden="true"><i /><i /><i /><i /></span></span>
       <div className="jcard-body">
         <div className="jcard-top">
           <span className="badge draft"><Icon.edit /> Draft</span>
