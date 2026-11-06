@@ -24,8 +24,14 @@ export function clearDraft() {
   try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage unavailable */ }
 }
 
+/** Links as people paste them: adds https:// when missing and trims spaces or quotes. */
+export function normaliseUrl(u: string) {
+  const t = u.trim().replace(/^[<"']+|[>"']+$/g, "");
+  return t && !/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? `https://${t.replace(/^\/+/, "")}` : t;
+}
+
 export function validUrl(u: string) {
-  try { const x = new URL(u.trim()); return /^https?:$/.test(x.protocol) && x.hostname.includes("."); } catch { return false; }
+  try { const x = new URL(normaliseUrl(u)); return /^https?:$/.test(x.protocol) && x.hostname.includes("."); } catch { return false; }
 }
 
 /** Reads a .docx brief (e.g. the Creative Brief template downloaded from Google Docs) into form fields. */
@@ -59,7 +65,7 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
 export function buildJobBody(f: JobInputs) {
   const images = f.asset_links.filter((u) => IMAGE_RE.test(u));
   return {
-    ...f, product_url: f.product_url.trim(), client_brief: composeBrief(f), theme: f.theme || null, aspect_ratio: f.aspect_ratio || null, brand_name: f.brand_name || null,
+    ...f, product_url: normaliseUrl(f.product_url), client_brief: composeBrief(f), theme: f.theme || null, aspect_ratio: f.aspect_ratio || null, brand_name: f.brand_name || null,
     product_image_urls: Array.from(new Set([...f.product_image_urls, ...images])).filter((u) => u.startsWith("https://")).slice(0, 4),
     references: f.references.map((r) => ({ ...r, kind: /^https?:\/\//.test(r.value.trim()) ? "url" : "note" })),
   };

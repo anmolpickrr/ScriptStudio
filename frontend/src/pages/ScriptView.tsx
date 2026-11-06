@@ -95,6 +95,9 @@ export default function ScriptView() {
   const flags = job.flags.filter((f) => f.severity !== "info").sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity));
   const blockers = flags.filter((f) => f.severity === "blocker").length;
   const openFindings = qc ? qc.findings.filter((f) => f.severity === "blocker" || f.severity === "major") : [];
+  // the product page couldn't be read (site blocks automated visitors, or it's down): offer the paste route
+  const unreadable = [job.error, ...job.flags.map((f) => f.message)].some((m) => /Couldn't read the product page/i.test(m || ""));
+  const pasteCopy = () => { saveDraft({ ...EMPTY, ...job.inputs }); nav("/new", { state: { pasteCopy: true } }); };
 
   const act = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
     setWorking(key);
@@ -260,12 +263,18 @@ export default function ScriptView() {
           <div style={{ flex: 1 }}><b>Generation failed.</b> {job.error || "Something went wrong."}
             <div className="row" style={{ marginTop: 10 }}>
               <button className="btn primary" disabled={!!working} onClick={() => rerun("retry", {}, "Restarted.")}>{working === "retry" && <Spinner />}Try again</button>
+              {unreadable && <button className="btn secondary" onClick={pasteCopy}>Paste product details</button>}
               <button className="btn secondary" onClick={() => { saveDraft({ ...EMPTY, ...job.inputs }); nav("/new"); }}>Edit inputs &amp; try again</button>
             </div>
           </div>
         </div>
       )}
       {job.error && job.status !== "failed" && !busy && <div className="banner"><span className="gl"><Icon.info /></span><span>{job.error}</span></div>}
+      {unreadable && job.status !== "failed" && !busy && (
+        <div className="banner"><span className="gl warn"><Icon.alert /></span>
+          <span style={{ flex: 1 }}><b>We couldn't read the product page.</b> Paste the product description from the website and write the script again, so every claim can be checked.</span>
+          <button className="btn sm secondary" onClick={pasteCopy}>Paste product details</button></div>
+      )}
       {blockers > 0 && !busy && job.script && (
         <div className="banner bad"><span className="gl bad"><Icon.alert /></span><span><b>{blockers} blocker{blockers > 1 ? "s" : ""} for the client.</b> Some details couldn't be confirmed, so the script works around them. <button className="toggle-link" style={{ margin: 0 }} onClick={() => openPanel("flags")}>Review flags</button></span></div>
       )}

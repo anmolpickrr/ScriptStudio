@@ -23,6 +23,10 @@ class UnsafeURL(ValueError):
     pass
 
 
+class UnreachableURL(ValueError):
+    """The host doesn't resolve: a typo or a dead site, not a security problem."""
+
+
 def check_url(url: str) -> str:
     p = urlparse(url)
     if p.scheme not in ("http", "https") or not p.hostname:
@@ -31,18 +35,20 @@ def check_url(url: str) -> str:
         raise UnsafeURL("Links with embedded credentials are not allowed.")
     host = p.hostname.lower().rstrip(".")
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")) or "." not in host:
-        raise UnsafeURL("Links to private or internal addresses are not allowed.")
+        raise UnsafeURL("This link points to a private or internal network address, which ScriptStudio can't open. "
+                        "Use the public product page link (the one customers see).")
     try:
         infos = socket.getaddrinfo(host, p.port or (443 if p.scheme == "https" else 80))
     except socket.gaierror:
         # Behind an egress proxy (some dev sandboxes) DNS happens at the proxy; IP literals are still checked.
         if _via_proxy() and not _is_ip(host):
             return url
-        raise UnsafeURL(f"Can't resolve host '{p.hostname}'.")
+        raise UnreachableURL(f"Can't find the website '{p.hostname}'. Check the link for typos.")
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if not ip.is_global or ip.is_multicast:
-            raise UnsafeURL("Links to private or internal addresses are not allowed.")
+            raise UnsafeURL("This link points to a private or internal network address, which ScriptStudio can't open. "
+                            "Use the public product page link (the one customers see).")
     return url
 
 
@@ -80,14 +86,14 @@ class SafeResponse:
 
 
 def safe_get(url: str, client: httpx.Client | None = None, max_redirects: int = 5,
-             timeout: float | None = None) -> SafeResponse:
+             timeout: float | None = None, headers: dict | None = None) -> SafeResponse:
     own = client is None
     client = client or httpx.Client(timeout=timeout or settings.fetch_timeout_sec, follow_redirects=False,
                                     headers={"User-Agent": UA, "Accept-Language": "en-IN,en;q=0.9"})
     try:
         for _ in range(max_redirects + 1):
             check_url(url)
-            with client.stream("GET", url) as r:
+            with client.stream("GET", url, headers=headers) as r:
                 if r.is_redirect and r.headers.get("location"):
                     url = urljoin(url, r.headers["location"])
                     continue

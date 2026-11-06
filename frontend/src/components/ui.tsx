@@ -153,7 +153,7 @@ export function timeAgo(iso: string): string {
 export const label = (k: string) => (k === "pov" ? "POV" : k.replace(/_/g, " "));
 
 export function hostOf(url: string): string {
-  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+  try { return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`).hostname.replace(/^www\./, ""); } catch { return url; }
 }
 
 // ---------------------------------------------------------------- error boundary

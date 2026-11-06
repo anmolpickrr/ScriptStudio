@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from ..llm import LLM
-from ..netsafe import UnsafeURL, safe_get
+from ..netsafe import UnreachableURL, UnsafeURL, safe_get
 from ..prompts import PRODUCT_EXTRACT_SYSTEM
 from ..schemas import Evidence, FactCategory, Flag, ProductDossier, ProductFact
 
@@ -34,22 +34,88 @@ class PageSource(BaseModel):
 
 # ------------------------------------------------------------------ fetching
 
+HTML_HEADERS = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-IN,en-GB;q=0.9,en;q=0.8"}
+REFUSED = (401, 403, 406, 451, 999)   # the site declined automated access; we respect that and ask for pasted copy
+
+
+class SiteRefused(RuntimeError):
+    """The website deliberately blocks automated visitors (login, bot check or access rules)."""
+
+
+def normalise_url(url: str) -> str:
+    """Accept links as people paste them: stray spaces or quotes, or no https:// at the start."""
+    u = url.strip().strip("<>\"'")
+    if u and not re.match(r"^[a-z][a-z0-9+.-]*://", u, re.I):
+        u = "https://" + u.lstrip("/")
+    return u
+
+
 def fetch(url: str, client: Optional[httpx.Client] = None) -> PageSource:
-    resp = safe_get(url, client)
+    """Read a product page. A mistyped host gets one retry with/without 'www.'; busy sites get a short wait."""
+    url = normalise_url(url)
+    try:
+        return _fetch_page(url, client)
+    except UnreachableURL:
+        p = urlparse(url)
+        host = p.hostname or ""
+        other = host[4:] if host.startswith("www.") else "www." + host
+        return _fetch_page(p._replace(netloc=p.netloc.replace(host, other, 1)).geturl(), client)
+
+
+def _fetch_page(url: str, client: Optional[httpx.Client]) -> PageSource:
+    resp = safe_get(url, client, headers=HTML_HEADERS)
     # busy stores answer "too many requests" or "unavailable" for a moment; wait briefly and ask again
     for wait in (2, 5):
         if resp.status_code not in (429, 503):
             break
         ra = resp.headers.get("retry-after", "")
         time.sleep(min(float(ra), 8) if ra.isdigit() else wait)
-        resp = safe_get(url, client)
+        resp = safe_get(url, client, headers=HTML_HEADERS)
+    host = urlparse(resp.url).hostname
+    if resp.status_code in REFUSED or (resp.status_code < 400 and _bot_check(resp.text)):
+        raise SiteRefused(f"{host} only lets people in a browser see this page (it blocks automated visitors)")
+    if resp.status_code in (404, 410):
+        raise RuntimeError(f"{host} says this page doesn't exist ({resp.status_code}), so the link may be old or mistyped")
+    if resp.status_code in (429, 503):
+        raise RuntimeError(f"{host} is busy right now ({resp.status_code}); try again in a few minutes")
     resp.raise_for_status()
     src = parse_html(resp.url, resp.text)
-    shopify = _try_shopify(client, resp.url)
-    if shopify:
-        src.structured.append(shopify)
-        src.image_urls = _dedupe(src.image_urls + [i for i in shopify.get("images", []) if isinstance(i, str)])
+    for extra in (_try_shopify(client, resp.url), _try_woocommerce(client, resp.url)):
+        if extra:
+            src.structured.append(extra)
+            src.image_urls = _dedupe(src.image_urls + [i for i in extra.get("images", []) if isinstance(i, str)])
     return src
+
+
+def _bot_check(html: str) -> bool:
+    """Recognise a 'checking your browser' / CAPTCHA page so we report it honestly instead of reading it as the product."""
+    h = html[:6000].lower()
+    return any(k in h for k in ("cf-browser-verification", "challenge-platform", "<title>just a moment",
+                                "captcha-delivery", "px-captcha", "are you a robot", "<title>access denied"))
+
+
+def _try_woocommerce(client: Optional[httpx.Client], url: str) -> Optional[dict]:
+    """WooCommerce stores publish product data through their public Store API, looked up by the URL slug."""
+    p = urlparse(url)
+    if "/product/" not in p.path:
+        return None
+    slug = p.path.rstrip("/").split("/")[-1]
+    try:
+        r = safe_get(f"{p.scheme}://{p.netloc}/wp-json/wc/store/v1/products?slug={slug}", client)
+        items = r.json() if r.status_code == 200 else []
+        if not isinstance(items, list) or not items:
+            return None
+        d = items[0]
+        prices = d.get("prices") or {}
+        return {"@source": "woocommerce", "title": d.get("name", ""), "description": _html_to_text(d.get("description", "")),
+                "short_description": _html_to_text(d.get("short_description", "")),
+                "price": prices.get("price"), "currency": prices.get("currency_code"),
+                "images": [i.get("src") for i in d.get("images", []) if i.get("src")],
+                "attributes": [{"name": a.get("name"), "terms": [t.get("name") for t in a.get("terms", [])]}
+                               for a in d.get("attributes", [])]}
+    except Exception:
+        return None
 
 
 def _try_shopify(client: Optional[httpx.Client], url: str) -> Optional[dict]:
@@ -85,6 +151,10 @@ def parse_html(url: str, html: str) -> PageSource:
             if _is_type(node, "Product"):
                 src.structured.append(_trim_jsonld(node))
 
+    # pages built with JavaScript usually still ship their product data as embedded JSON or microdata
+    if not src.structured:
+        src.structured.extend(_embedded_products(soup))
+
     for m in soup.find_all("meta"):
         key = m.get("property") or m.get("name")
         if key and m.get("content") and (key.startswith(("og:", "product:", "twitter:")) or key == "description"):
@@ -107,6 +177,59 @@ def parse_html(url: str, html: str) -> PageSource:
         t.decompose()
     src.text = _normalise(soup.get_text(" "))[:20000]
     return src
+
+
+def _embedded_products(soup) -> list[dict]:
+    out: list[dict] = []
+    for tag in soup.find_all("script"):
+        t = (tag.get("type") or "").lower()
+        if tag.get("id") != "__NEXT_DATA__" and t not in ("application/json",) and "__NUXT__" not in (tag.string or "")[:40]:
+            continue
+        try:
+            data = json.loads(tag.string or "")
+        except Exception:
+            continue
+        for node in _walk_any(data):
+            if _looks_like_product(node):
+                out.append({"@source": "embedded", **{k: node[k] for k in _PRODUCT_KEYS if k in node and _small(node[k])}})
+                if len(out) >= 2:
+                    return out
+    micro = soup.find(attrs={"itemtype": re.compile(r"schema.org/Product", re.I)})
+    if micro:
+        props = {}
+        for el in micro.find_all(attrs={"itemprop": True}):
+            v = el.get("content") or el.get_text(" ", strip=True)
+            if v and el["itemprop"] not in props:
+                props[el["itemprop"]] = v[:1000]
+        if props:
+            out.append({"@source": "microdata", **props})
+    return out
+
+
+_PRODUCT_KEYS = ("name", "title", "brand", "description", "price", "mrp", "currency", "sku", "material", "color",
+                 "size", "features", "highlights", "specifications", "variants", "rating")
+
+
+def _walk_any(data, depth: int = 0):
+    if depth > 12:
+        return
+    if isinstance(data, dict):
+        yield data
+        for v in data.values():
+            yield from _walk_any(v, depth + 1)
+    elif isinstance(data, list):
+        for v in data[:200]:
+            yield from _walk_any(v, depth + 1)
+
+
+def _looks_like_product(node: dict) -> bool:
+    named = isinstance(node.get("name") or node.get("title"), str)
+    return named and any(k in node for k in ("price", "mrp", "sku")) and \
+        isinstance(node.get("description", ""), (str, dict, list))
+
+
+def _small(v) -> bool:
+    return len(json.dumps(v, default=str)) < 4000
 
 
 def _walk_jsonld(data):
@@ -191,6 +314,15 @@ class SourceUnavailable(RuntimeError):
     pass
 
 
+def _why(e: Exception) -> str:
+    if isinstance(e, httpx.TimeoutException):
+        return "the website took too long to respond"
+    if isinstance(e, httpx.ConnectError):
+        return "the website couldn't be reached"
+    code = re.search(r"HTTP (\d{3})", str(e))
+    return f"the website returned an error (HTTP {code.group(1)})" if code else (str(e) or e.__class__.__name__)
+
+
 def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str = "",
                   extra_images: Optional[list[str]] = None) -> tuple[PageSource, str, list[Flag]]:
     """Fetch the product page (or fall back to pasted copy) and build the text facts must be quoted from."""
@@ -200,11 +332,13 @@ def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str
     except UnsafeURL as e:
         raise ValueError(str(e))
     except Exception as e:
+        why = str(e) if isinstance(e, (SiteRefused, UnreachableURL, RuntimeError)) and str(e) else _why(e)
         if not product_copy.strip():
-            raise SourceUnavailable(f"Could not read the product link ({e}). Check the link is public, or paste "
-                                    "the product description into 'Page won't load?' and try again.")
+            raise SourceUnavailable(f"Couldn't read the product page: {why}. Open the page in your browser, copy the "
+                                    "product description, and paste it into 'Page won't load?'. The script is then "
+                                    "checked against that text.")
         flags.append(Flag(severity="major", area="product",
-                          message=f"Could not read the product link ({e}); using the pasted product copy only.",
+                          message=f"Couldn't read the product page ({why}); using the pasted product copy only.",
                           suggestion="Double-check the pasted copy is current."))
         page = PageSource(url=url)
     page.image_urls = _dedupe((extra_images or []) + page.image_urls)

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def utcnow() -> str:
@@ -30,6 +30,16 @@ class Reference(BaseModel):
 
 class JobInputs(BaseModel):
     product_url: str = Field(max_length=2000, pattern=r"^https?://")
+
+    @field_validator("product_url", mode="before")
+    @classmethod
+    def _link_as_pasted(cls, v):
+        """People paste links without https:// or with stray spaces; accept them as typed."""
+        if isinstance(v, str):
+            v = v.strip().strip("<>\"'")
+            if v and "://" not in v:
+                v = "https://" + v.lstrip("/")
+        return v
     client_brief: str = Field(min_length=20, max_length=20000)
     product_copy: str = Field("", max_length=20000)  # fallback/extra product text pasted by the user
     product_image_urls: list[Annotated[str, Field(max_length=2000, pattern=r"^https://")]] = Field([], max_length=4)

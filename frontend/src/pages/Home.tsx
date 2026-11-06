@@ -77,7 +77,7 @@ export default function Home() {
   const generate = async (ev: FormEvent) => {
     ev.preventDefault();
     setTouched(true);
-    if (!ready) { toast(!urlOk ? "Paste the full product link, starting with https://" : "Add a sentence or two of brief.", "error"); return; }
+    if (!ready) { toast(!urlOk ? "Paste the product page link, e.g. brand.com/products/…" : "Add a sentence or two of brief.", "error"); return; }
     setBusy(true);
     try {
       const job = await api.post<JobSummary>("/api/jobs", buildJobBody(full()));

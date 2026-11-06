@@ -35,7 +35,7 @@ export default function NewScript() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
-  const navState = (loc.state as { imported?: string[]; draftId?: string; from?: string } | null) || {};
+  const navState = (loc.state as { imported?: string[]; draftId?: string; from?: string; pasteCopy?: boolean } | null) || {};
   const [imported, setImported] = useState<string[]>(() => navState.imported || []);
   const [draftId, setDraftId] = useState<string | undefined>(navState.draftId);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -47,7 +47,13 @@ export default function NewScript() {
     toast(draftId ? "Draft updated." : "Saved to your drafts — find it on the Studio desk.", "ok");
   };
   useEffect(() => { if (params.size) setParams({}, { replace: true }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [showCopy, setShowCopy] = useState(() => !!f.product_copy);
+  const [showCopy, setShowCopy] = useState(() => !!f.product_copy || !!navState.pasteCopy);
+  // arriving from a script whose product page couldn't be read: open the paste box and go straight to it
+  useEffect(() => {
+    if (!navState.pasteCopy) return;
+    setMoreOpen(true);
+    setTimeout(() => { const el = document.getElementById("product_copy"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.focus(); }, 300);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [moreOpen, setMoreOpen] = useState(() => !!(f.brand_name || f.target_audience || f.key_usps.length || f.offer || f.tone ||
     f.mandatories.length || f.references.length || f.asset_links.length || f.logo_url));
   const set = <K extends keyof JobInputs>(k: K, v: JobInputs[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -59,7 +65,7 @@ export default function NewScript() {
   const composed = useMemo(() => composeBrief(f), [f]);
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
-    if (!validUrl(f.product_url)) e.product_url = "Paste the full product page link, starting with https://";
+    if (!validUrl(f.product_url)) e.product_url = "Paste the product page link, e.g. brand.com/products/…";
     if (composed.trim().length < 20) e.client_brief = "Add the brief or creative direction — a couple of sentences is enough.";
     if (!optUrl(f.logo_url)) e.logo_url = "Use a full link starting with https://";
     if (!optUrl(f.brand_guidelines_url)) e.brand_guidelines_url = "Use a full link starting with https://";
