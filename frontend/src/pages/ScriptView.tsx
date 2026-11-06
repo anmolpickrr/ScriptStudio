@@ -96,7 +96,7 @@ export default function ScriptView() {
   const blockers = flags.filter((f) => f.severity === "blocker").length;
   const openFindings = qc ? qc.findings.filter((f) => f.severity === "blocker" || f.severity === "major") : [];
   // the product page couldn't be read (site blocks automated visitors, or it's down): offer the paste route
-  const unreadable = [job.error, ...job.flags.map((f) => f.message)].some((m) => /Couldn't read the product page/i.test(m || ""));
+  const unreadable = [job.error, ...job.flags.map((f) => f.message)].some((m) => /Could(n't| not) read the product (page|link)/i.test(m || ""));
   const pasteCopy = () => { saveDraft({ ...EMPTY, ...job.inputs }); nav("/new", { state: { pasteCopy: true } }); };
 
   const act = async (key: string, fn: () => Promise<unknown>, ok?: string) => {
