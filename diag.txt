@@ -1,0 +1,58 @@
+PASS index / -> 200 text/html; charset=utf-8 1902B 0.725677s
+PASS bundle /assets/index-orstakMO.js -> 200 text/javascript; charset=utf-8 344788B 0.373851s
+PASS health /api/health -> 200 application/json 11B 0.264104s
+PASS config /api/config -> 200 application/json 240B 0.300747s
+PASS deep_health /api/health/deep -> 200 application/json 341B 0.707180s
+deep_health: {"version":"c28bc60","store":"postgres","llm_provider":"gemini","models":["gemini-3.5-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-flash-latest","gemini-3.5-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-flash-latest","gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite"],"config_issues":[],"db":"ok","ok":true}
+PASS options /api/options -> 200 application/json 3294B 0.272698s
+PASS new_route /new -> 200 text/html; charset=utf-8 1902B 0.269992s
+PASS pages site https://anmolpickrr.github.io/ScriptStudio/ -> 200
+PASS pages bundle points at https://scriptstudio.onrender.com
+INFO pages serves assets/index-BaRWSnAO.js (latest-features marker: 1)
+PASS pages deep link (status 404)
+PASS API allows https://anmolpickrr.github.io
+PASS API issues header session
+PASS mcp initialize
+PASS mcp tools/list
+PASS no OAuth required (404)
+PASS GPT action schema
+CREATE -> 200 {"id":"53dd1fbfc9e9","status":"queued","created_at":"2026-11-06T12:57:03.639000+00:00","updated_at":"2026-11-06T12:57:03.639030+00:00","title":"","product_url":"https://suroskie.com/products/glow-up-juice-spf-35-pa-rice-rose-dewy-spf-toner-mist","brand":"","platform":"Instagram Reels","duration_sec":30,"passed":false,"owner":"guest-904d9b07f4a37238"}
+[1s] running — product_analysis started 
+[73s] running — reconcile started 
+[83s] running — concepts started 
+[239s] running — beats started 
+[249s] running — write started 
+[281s] running — qc started round 1
+[291s] running — revise started round 1
+[322s] running — qc started round 2
+[332s] running — revise started round 2
+[363s] running — qc started round 3
+[405s] ready — run done Full generation
+{
+  "status": "ready",
+  "error": "",
+  "title": "Zero Gimmicks First Buy",
+  "scenes": 8,
+  "facts_verified": 10,
+  "flags": [
+    "Assumed: No specific product details provided - assumed general everyday comfort offering.",
+    "The parsed brief assumes general everyday comfort offering and states that no specific product details were provided, while the actual product is a specific cosmetic item (Glow Up Juice Spf 35 PA++++ Rice & Rose Dewy Spf Toner Mist)."
+  ],
+  "qc": {
+    "story_logic": 5,
+    "authenticity": 5,
+    "cta_relevance": 5,
+    "hook_strength": 4,
+    "visual_vo_sync": 5,
+    "brief_alignment": 4,
+    "dialogue_quality": 4,
+    "product_integration": 5
+  },
+  "passed": true
+}
+PASS export preview -> 200 text/html; charset=utf-8 12096B
+PASS export docx -> 200 application/vnd.openxmlformats-officedocument.wordprocessingml.document 38869B
+PASS export download -> 200 text/html; charset=utf-8 11454B
+PASS relay prompt ready (28081 chars)
+relay answer -> 200 status=needs_review title=The 9:58 Standup
+relay docx -> 200 application/vnd.openxmlformats-officedocument.wordprocessingml.document

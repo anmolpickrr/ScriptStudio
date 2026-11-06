@@ -1,0 +1,22 @@
+{
+  "status": "ready",
+  "error": "",
+  "title": "Zero Gimmicks First Buy",
+  "scenes": 8,
+  "facts_verified": 10,
+  "flags": [
+    "Assumed: No specific product details provided - assumed general everyday comfort offering.",
+    "The parsed brief assumes general everyday comfort offering and states that no specific product details were provided, while the actual product is a specific cosmetic item (Glow Up Juice Spf 35 PA++++ Rice & Rose Dewy Spf Toner Mist)."
+  ],
+  "qc": {
+    "story_logic": 5,
+    "authenticity": 5,
+    "cta_relevance": 5,
+    "hook_strength": 4,
+    "visual_vo_sync": 5,
+    "brief_alignment": 4,
+    "dialogue_quality": 4,
+    "product_integration": 5
+  },
+  "passed": true
+}
