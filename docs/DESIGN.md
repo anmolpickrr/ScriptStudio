@@ -10,7 +10,7 @@ for Night); the v9 layer at the end of that file holds the components below.
 |---|---|---|---|
 | `--cobalt` (violet) | `#6953da` | `#9c8be7` | Primary: actions, the active nav item, the composer, the "Ready" tile |
 | `--ink` | `#131315` | `#131315` | Anchors: nav pill, logo chip, Write button, selected toggles (Day) |
-| `--mint` (lime) | `#d5f379` | `#d5f379` | Write button, active nav, Ready tile, success |
+| `--mint` (lime) | `#ddff00` | `#ddff00` | Write button, active nav, Ready tile, success |
 | `--sky` | `#dce6ff` | cobalt 14% | Drafts tile |
 | `--lilac` | `#e6e0ff` | violet 16% | In-progress tile |
 | `--apricot` | `#ffdcb5` | orange 14% | Needs-review tile |

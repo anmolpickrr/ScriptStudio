@@ -9,9 +9,9 @@
 @font-face { font-family: "UI Display"; src: url("/fonts/Outfit-Bold.ttf"); font-weight: 700 800; font-display: swap; }
 
 :root, :root[data-theme="light"] {
-  /* Palette: violet #6953DA (primary), soft violet #9C8BE7, lime #D5F379, ink #131315, grey #838383,
+  /* Palette: violet #6953DA (primary), soft violet #9C8BE7, lime #ddff00, ink #131315, grey #838383,
      cloud #EEEEEC, white #FDFDFD. Soft tints of each for surfaces. */
-  --cobalt: #6953da; --cobalt-deep: #5640c4; --ink: #131315; --mint: #d5f379; --sky: #ecebf9; --lilac: #e4dffa; --apricot: #f1f8d2;
+  --cobalt: #6953da; --cobalt-deep: #5640c4; --ink: #131315; --mint: #ddff00; --sky: #ecebf9; --lilac: #e4dffa; --apricot: #f1f8d2;
   --bg: #eeeeec; --s1: #fdfdfd; --s2: #f6f6f4; --s3: #ececea; --s4: #e2e2df; --inset: #f6f6f4; --panel: #fdfdfd;
   --glass: rgba(253, 253, 253, .78);
   --ink-rgb: 19 19 21; --violet-rgb: 105 83 218; --primary-rgb: 105 83 218; --lime-rgb: 150 180 40;
@@ -20,7 +20,7 @@
   --dots: none;
   --brand: #6953da; --violet: #6953da; --violet-2: #5640c4; --violet-soft: #ecebf9; --violet-line: #c9c0f3;
   --primary: #6953da; --grad: linear-gradient(135deg, #6953da, #9c8be7);
-  --lime: #d5f379; --lime-text: #4d6410; --lime-soft: #f1f8d2; --lime-ink: #131315;
+  --lime: #ddff00; --lime-text: #4d6410; --lime-soft: #f1f8d2; --lime-ink: #131315;
   --orange: #c2410c; --orange-soft: #fbeee4;
   --ok: #4d6410; --ok-soft: #eef7cf; --warn: #9a4708; --warn-soft: #fbeee4;
   --bad: #c0303c; --bad-soft: #fbe4e6;
@@ -37,14 +37,14 @@
 :root[data-theme="dark"] {
   --bg: #131315; --s1: #1b1b1e; --s2: #212124; --s3: #29292d; --s4: #323236; --inset: #18181a; --panel: #1b1b1e;
   --glass: rgba(27, 27, 30, .8);
-  --ink-rgb: 238 238 236; --violet-rgb: 156 139 231; --lime-rgb: 213 243 121;
-  --sky: rgba(156, 139, 231, .12); --lilac: rgba(105, 83, 218, .2); --apricot: rgba(213, 243, 121, .1);
+  --ink-rgb: 238 238 236; --violet-rgb: 156 139 231; --lime-rgb: 221 255 0;
+  --sky: rgba(156, 139, 231, .12); --lilac: rgba(105, 83, 218, .2); --apricot: rgba(221, 255, 0, .1);
   --line: #2c2c30; --line-2: #36363b; --line-3: #4a4a50;
   --text: #eeeeec; --text-2: #c4c4c8; --text-3: #949498;
   --violet: #9c8be7; --violet-2: #b8abf0; --violet-soft: rgba(156, 139, 231, .15); --violet-line: rgba(156, 139, 231, .45);
-  --lime: #d5f379; --lime-text: #d5f379; --lime-soft: rgba(213, 243, 121, .12);
+  --lime: #ddff00; --lime-text: #ddff00; --lime-soft: rgba(221, 255, 0, .12);
   --orange: #ffa36b; --orange-soft: rgba(255, 163, 107, .13);
-  --ok: #d5f379; --ok-soft: rgba(213, 243, 121, .12); --warn: #ffb36b; --warn-soft: rgba(255, 179, 107, .12);
+  --ok: #ddff00; --ok-soft: rgba(221, 255, 0, .12); --warn: #ffb36b; --warn-soft: rgba(255, 179, 107, .12);
   --bad: #ff7a86; --bad-soft: rgba(255, 122, 134, .12);
   --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset;
   --shadow-lg: 0 34px 80px -30px rgba(0, 0, 0, .7);
@@ -1567,11 +1567,11 @@ body, .canvas, .shell {
   background-attachment: fixed !important; }
 :root[data-theme="dark"] body, :root[data-theme="dark"] .canvas, :root[data-theme="dark"] .shell {
   background: radial-gradient(1000px 600px at 6% -10%, rgba(105, 83, 218, .22) 0%, transparent 60%),
-              radial-gradient(800px 520px at 100% 4%, rgba(213, 243, 121, .06) 0%, transparent 58%), var(--bg) !important; }
+              radial-gradient(800px 520px at 100% 4%, rgba(221, 255, 0, .06) 0%, transparent 58%), var(--bg) !important; }
 .composer { background: linear-gradient(155deg, #5e48d2 0%, #6953da 60%, #7461d6 100%) !important;
   box-shadow: 0 34px 70px -36px rgba(105, 83, 218, .7) !important; }
 .composer .write-btn { background: var(--mint) !important; color: var(--ink) !important; }
-.composer .write-btn:hover { background: #c8ea5c !important; }
+.composer .write-btn:hover { background: #cdee00 !important; }
 .composer .kbd-hint { background: rgba(19, 19, 21, .12); color: var(--ink); }
 .icon-nav a.active { background: var(--mint); color: var(--ink); }
 .btn.primary { box-shadow: 0 12px 26px -14px rgba(105, 83, 218, .8); }
