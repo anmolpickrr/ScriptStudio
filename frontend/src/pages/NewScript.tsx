@@ -167,6 +167,9 @@ export default function NewScript() {
               <input id="product_url" type="url" inputMode="url" value={f.product_url} className={show("product_url") ? "invalid" : ""}
                      placeholder="https://brand.com/products/…" onChange={(e) => set("product_url", e.target.value)} onBlur={blur("product_url")} />
             </Field>
+            <Field id="extra_product_urls" label="More products (optional)" hint="Combo items, colour or design variants, related products or a range. Up to 5; the script covers them together.">
+              <TagInput id="extra_product_urls" value={f.extra_product_urls || []} onChange={(v) => set("extra_product_urls", v)} max={5} placeholder="Paste another product link and press Enter" />
+            </Field>
             {f.mode === "refine" && (
               <Field id="client_script" label="Client's script" required error={show("client_script")}
                      hint="Paste it as it is. What works stays word for word; every edit is highlighted and explained.">

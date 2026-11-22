@@ -9,7 +9,7 @@ export const EMPTY: JobInputs = {
   duration_sec: 30, aspect_ratio: null, creative_direction: "", references: [], hook_type: null, theme: "", target_audience: "",
   tone: "", language: "English", mandatories: [], exclusions: [], brand_name: "", format_id: "house-v1", concept_count: 3,
   engine: "auto", logo_url: "", brand_guidelines_url: "", asset_links: [], ad_type: "Video", headline_ideas: [],
-  key_usps: [], offer: "", cta: "", design_style: "", elements_to_highlight: [], subtitles: true, image_source: "Web", mode: "write", client_script: "",
+  key_usps: [], offer: "", cta: "", design_style: "", elements_to_highlight: [], subtitles: true, image_source: "Web", mode: "write", client_script: "", extra_product_urls: [],
 };
 
 export function loadDraft(): JobInputs {
@@ -65,7 +65,7 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif|avif)(\?|$)/i;
 export function buildJobBody(f: JobInputs) {
   const images = f.asset_links.filter((u) => IMAGE_RE.test(u));
   return {
-    ...f, product_url: normaliseUrl(f.product_url), client_brief: composeBrief(f), theme: f.theme || null, aspect_ratio: f.aspect_ratio || null, brand_name: f.brand_name || null,
+    ...f, product_url: normaliseUrl(f.product_url), extra_product_urls: (f.extra_product_urls || []).map(normaliseUrl).filter(Boolean), client_brief: composeBrief(f), theme: f.theme || null, aspect_ratio: f.aspect_ratio || null, brand_name: f.brand_name || null,
     product_image_urls: Array.from(new Set([...f.product_image_urls, ...images])).filter((u) => u.startsWith("https://")).slice(0, 4),
     references: f.references.map((r) => ({ ...r, kind: /^https?:\/\//.test(r.value.trim()) ? "url" : "note" })),
   };

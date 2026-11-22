@@ -36,7 +36,7 @@ export interface JobInputs {
   logo_url: string; brand_guidelines_url: string; asset_links: string[]; ad_type: string; headline_ideas: string[];
   key_usps: string[]; offer: string; cta: string; design_style: string; elements_to_highlight: string[];
   subtitles: boolean; image_source: string;
-  mode: "write" | "refine"; client_script: string;
+  mode: "write" | "refine"; client_script: string; extra_product_urls: string[];
 }
 
 export interface Flag { severity: Severity; area: string; message: string; suggestion: string }

@@ -157,6 +157,19 @@ export default function Home() {
                      value={f.product_url} onChange={(e) => set("product_url", e.target.value)} />
               {urlOk && <span className="composer-host"><Icon.check /> {hostOf(f.product_url)}</span>}
             </label>
+            {(f.extra_product_urls || []).map((u, n) => (
+              <label key={n} className={`composer-url extra ${u && !validUrl(u) ? "bad" : ""}`}>
+                <span className="composer-ic" aria-hidden="true"><Icon.link /></span>
+                <input type="url" inputMode="url" aria-label={`Product link ${n + 2}`} placeholder={`Product ${n + 2}: a combo item, another colour or design, a related product…`}
+                       value={u} autoFocus={!u} onChange={(e) => set("extra_product_urls", f.extra_product_urls.map((x, k) => (k === n ? e.target.value : x)))} />
+                <button type="button" className="icon-btn" aria-label={`Remove product ${n + 2}`}
+                        onClick={() => set("extra_product_urls", f.extra_product_urls.filter((_, k) => k !== n))}><Icon.trash /></button>
+              </label>
+            ))}
+            {(f.extra_product_urls || []).length < 5 && (
+              <button type="button" className="add-product" onClick={() => set("extra_product_urls", [...(f.extra_product_urls || []), ""])}>
+                <Icon.plus /> {(f.extra_product_urls || []).length ? "Add another product" : "Add more products (combo, variants, range)"}</button>
+            )}
             {refine && (
               <div className="composer-brief-wrap client-script">
                 <div className="brief-head">
@@ -275,8 +288,8 @@ export default function Home() {
 
 /** The composer's fields only, so the full form's other answers are never overwritten. */
 function pick(f: JobInputs): Partial<JobInputs> {
-  const { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style } = f;
-  return { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style };
+  const { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style, extra_product_urls } = f;
+  return { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style, extra_product_urls };
 }
 
 /** A live miniature of the script sheet you'll get, filled in as you type. */

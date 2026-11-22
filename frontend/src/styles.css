@@ -1490,7 +1490,7 @@ main.content { margin: 0 auto; width: min(1280px, calc(100% - 48px)); max-width:
 .composer .brief-head label svg { color: var(--cobalt); }
 .composer .bp-chip { color: #2a3150; border-color: #c9d2ee; } .composer .bp-chip.example { color: var(--cobalt-deep); }
 .composer .brief-count.ok { color: #0b7a55; }
-:root[data-theme="dark"] .composer :is(.composer-url, .composer-brief-wrap) { background: #0e1630; color: #eef2ff; }
+:root[data-theme="dark"] .composer :is(.composer-url, .composer-brief-wrap) { background: #1b1b1e; color: #eeeeec; }
 :root[data-theme="dark"] .composer :is(.composer-url input, .composer-brief) { color: #eef2ff; }
 :root[data-theme="dark"] .composer :is(.brief-head label, .brief-tip, .bp-label, .tool-btn, .brief-count, .bp-chip) { color: #b6c0de; }
 .composer .spec-bar { border-top: 0; padding: 14px 10px 10px; }
@@ -1582,3 +1582,8 @@ body, .canvas, .shell {
 .tabs button.on .badge { background: var(--mint); color: var(--ink); }
 .tabbar .tab-new { background: var(--mint) !important; color: var(--ink) !important; }
 .tabbar .tab-new svg { color: var(--ink) !important; }
+.composer .composer-url.extra { margin-top: 8px; padding-right: 8px; }
+.add-product { display: inline-flex; align-items: center; gap: 6px; margin: 8px 6px 0; height: 32px; padding: 0 14px; border-radius: 999px;
+  border: 1px dashed rgba(255, 255, 255, .6); background: transparent; color: #fff; font: 600 12.5px var(--font); cursor: pointer; }
+.add-product:hover { background: rgba(255, 255, 255, .14); border-style: solid; }
+.add-product svg { width: 14px; height: 14px; }

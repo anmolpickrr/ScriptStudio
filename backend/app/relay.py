@@ -239,6 +239,10 @@ def _inputs_block(job: Job) -> str:
     if i.references:
         lines.append("REFERENCES (style only, never product facts): " + "; ".join(
             f"{r.value}, take: {r.what_to_take or 'n/a'}" for r in i.references))
+    if i.extra_product_urls:
+        from .pipeline import MULTI_PRODUCT
+        lines.append(MULTI_PRODUCT.format(n=1 + len(i.extra_product_urls)) + " Links: " +
+                     ", ".join([i.product_url, *i.extra_product_urls]))
     return "\n".join(lines)
 
 
@@ -361,7 +365,8 @@ def prepare(job: Job, spec: FormatSpec, page: Optional[PageSource] = None) -> Jo
     from .ingest.product import SourceUnavailable
     try:
         _, text, flags = gather_source(job.inputs.product_url, page, job.inputs.product_copy,
-                                       job.inputs.product_image_urls, quick=True)
+                                       job.inputs.product_image_urls, quick=True,
+                                       more_urls=job.inputs.extra_product_urls)
     except SourceUnavailable:
         text, flags = "", []
     job.flags = flags

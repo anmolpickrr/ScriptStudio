@@ -31,6 +31,10 @@ log = logging.getLogger(__name__)
 SEV_WEIGHT = {"blocker": 100, "major": 10, "minor": 1, "info": 0}
 
 
+MULTI_PRODUCT = ("SEVERAL PRODUCTS IN ONE SCRIPT ({n}). Work out how they relate (combo or bundle, colour or design "
+                 "variants, a range, products used together) and build ONE story that features each of them with its "
+                 "key verified features. Give every product a clear on-screen moment and name it the first time it "
+                 "appears; don't let one product swallow the script. Facts carry their product's name.")
 MAX_ROUNDS = 1  # keeps a full run inside about three minutes
 
 
@@ -69,6 +73,9 @@ class Pipeline:
             "PACKAGING: " + ((job.dossier.packaging_description if job.dossier else "") or
                              "UNKNOWN - write [USE ACTUAL PACK] for pack shots"),
         ]
+        if i.extra_product_urls:
+            parts.append(MULTI_PRODUCT.format(n=1 + len(i.extra_product_urls)) + " Links: " +
+                         ", ".join([i.product_url, *i.extra_product_urls]))
         if include_brief and job.brief:
             parts.append("CREATIVE BRIEF: " + job.brief.model_dump_json())
         if i.hook_type:
@@ -162,7 +169,8 @@ class Pipeline:
         self._stage(job, "product_analysis", "started")
         job.dossier, flags = analyse_product(job.inputs.product_url, self.llm, page=self.page_override,
                                              product_copy=job.inputs.product_copy,
-                                             extra_images=job.inputs.product_image_urls)
+                                             extra_images=job.inputs.product_image_urls,
+                                             more_urls=job.inputs.extra_product_urls)
         job.flags += flags
         self._stage(job, "product_analysis", "done",
                     f"{len(job.dossier.verified_facts())} verified facts, {len(job.dossier.facts)} extracted")

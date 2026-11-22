@@ -64,6 +64,11 @@ def create_job(inputs: JobInputs, user: User = Depends(current_user)):
         raise HTTPException(422, "Unknown hook type.")
     try:
         check_url(inputs.product_url)
+        for n, u in enumerate(inputs.extra_product_urls, 2):
+            try:
+                check_url(u)
+            except UnsafeURL as e:
+                raise HTTPException(422, f"Product link {n}: {e}")
     except UnsafeURL as e:
         raise HTTPException(422, f"Product link: {e}")
     try:

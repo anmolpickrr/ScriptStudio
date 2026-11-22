@@ -43,6 +43,18 @@ class JobInputs(BaseModel):
     client_brief: str = Field("", max_length=20000)
     mode: Literal["write", "refine"] = "write"            # refine = improve the client's own script, keep the rest
     client_script: str = Field("", max_length=30000)
+    # more products for one script: combos, colour variants, designs, related items, a range
+    extra_product_urls: list[Annotated[str, Field(max_length=2000)]] = Field([], max_length=5)
+
+    @field_validator("extra_product_urls", mode="before")
+    @classmethod
+    def _more_links(cls, v):
+        out = []
+        for u in v or []:
+            u = str(u).strip().strip("<>\"'")
+            if u:
+                out.append(u if "://" in u else "https://" + u.lstrip("/"))
+        return list(dict.fromkeys(out))
 
     @model_validator(mode="after")
     def _enough_to_work_with(self):

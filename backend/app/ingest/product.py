@@ -338,7 +338,8 @@ def _why(e: Exception) -> str:
 
 
 def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str = "",
-                  extra_images: Optional[list[str]] = None, quick: bool = False) -> tuple[PageSource, str, list[Flag]]:
+                  extra_images: Optional[list[str]] = None, quick: bool = False,
+                  more_urls: Optional[list[str]] = None) -> tuple[PageSource, str, list[Flag]]:
     """Fetch the product page (or fall back to pasted copy) and build the text facts must be quoted from."""
     flags: list[Flag] = []
     try:
@@ -357,6 +358,25 @@ def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str
         page = PageSource(url=url)
     page.image_urls = _dedupe((extra_images or []) + page.image_urls)
     text = corpus(page, product_copy)
+    if more_urls:  # several products in one script: every page is read (at the same time) and labelled
+        from concurrent.futures import ThreadPoolExecutor
+
+        def one(u):
+            try:
+                return u, fetch(u, quick=quick), ""
+            except Exception as e:
+                return u, None, str(e) or _why(e)
+        with ThreadPoolExecutor(min(5, len(more_urls))) as ex:
+            got = list(ex.map(one, more_urls))
+        parts = [f"=== PRODUCT 1: {url} ===\n{text}"]
+        for n, (u, p, err) in enumerate(got, 2):
+            if p is None:
+                flags.append(Flag(severity="major", area="product", message=f"Couldn't read product {n} ({u}): {err}.",
+                                  suggestion="Paste that product's description into the product copy, labelled with its name."))
+                continue
+            page.image_urls = _dedupe(page.image_urls + p.image_urls[:2])
+            parts.append(f"=== PRODUCT {n}: {u} ===\n{corpus(p)}")
+        text = "\n\n".join(parts)
     if len(page.text) < 200 and not page.structured and not product_copy.strip():
         flags.append(Flag(severity="major", area="product",
                           message="The product page exposes very little readable text (likely rendered by JavaScript).",
@@ -402,15 +422,21 @@ def build_dossier(url: str, page: PageSource, text: str, ext: "_Extraction", pro
     return dossier, flags
 
 
+MULTI_NOTE = ("SEVERAL PRODUCTS: the source holds more than one product page, each under '=== PRODUCT n ==='. "
+              "Extract facts for every product and start each `statement` with that product's name. Set "
+              "`product_name` to how they belong together (e.g. 'Glow Duo: toner mist + serum', 'Tee in 4 colours').\n\n")
+
+
 def analyse_product(url: str, llm: LLM, page: Optional[PageSource] = None, product_copy: str = "",
-                    extra_images: Optional[list[str]] = None) -> tuple[ProductDossier, list[Flag]]:
+                    extra_images: Optional[list[str]] = None,
+                    more_urls: Optional[list[str]] = None) -> tuple[ProductDossier, list[Flag]]:
     try:
-        page, text, flags = gather_source(url, page, product_copy, extra_images)
+        page, text, flags = gather_source(url, page, product_copy, extra_images, more_urls=more_urls)
     except SourceUnavailable as e:
         return ProductDossier(url=url, unknowns=["Entire product page unreadable"]), [
             Flag(severity="blocker", area="product", message=str(e))]
     ext = llm.structured(stage="extract_product", system=PRODUCT_EXTRACT_SYSTEM,
-                         user=f"PRODUCT URL: {url}\n\nSOURCE:\n{text}", schema=_Extraction,
+                         user=f"PRODUCT URL: {url}\n\n" + (MULTI_NOTE if more_urls else "") + f"SOURCE:\n{text}", schema=_Extraction,
                          images=page.image_urls[:4])
     dossier, more = build_dossier(url, page, text, ext, product_copy)
     return dossier, flags + more

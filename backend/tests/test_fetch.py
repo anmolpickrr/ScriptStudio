@@ -77,3 +77,12 @@ def test_woocommerce_store_api_adds_product_details():
         return httpx.Response(200, html="<title>Cushion</title><p>" + "Comfort cushion. " * 30 + "</p>")
     page = fetch("https://shop.example.com/product/cushion/", client(handler))
     assert any(s.get("@source") == "woocommerce" and s["description"] == "Memory foam" for s in page.structured)
+
+
+def test_several_product_pages_are_read_together(monkeypatch):
+    pages = {"https://a.example.com/p/tee": "<title>Pet Tee</title><p>" + "Embroidered pet tee. " * 20 + "</p>",
+             "https://a.example.com/p/hoodie": "<title>Pet Hoodie</title><p>" + "Embroidered pet hoodie. " * 20 + "</p>"}
+    monkeypatch.setattr(product, "fetch", lambda url, client=None, **kw: product.parse_html(url, pages[url]))
+    _, text, flags = gather_source("https://a.example.com/p/tee", more_urls=["https://a.example.com/p/hoodie", "https://a.example.com/p/gone"])
+    assert "=== PRODUCT 1: https://a.example.com/p/tee ===" in text and "=== PRODUCT 2: https://a.example.com/p/hoodie ===" in text
+    assert "Embroidered pet hoodie" in text and any("product 3" in f.message for f in flags)
