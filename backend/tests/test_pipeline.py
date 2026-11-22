@@ -100,3 +100,27 @@ def test_google_doc_export_converts_html(tmp_path):
                                client=httpx.Client(transport=httpx.MockTransport(handler)))
     assert url.endswith("doc123/edit") and len(seen) == 2
     assert seen[0].headers["Authorization"] == "Bearer tok"
+
+
+def test_refine_mode_keeps_the_client_script_and_highlights_edits(tmp_path):
+    from app.render.docx import render_script_docx
+    from app.schemas import ChangeNote
+
+    def refined(**_):
+        s = good_script()
+        s.scenes[1].changed = ["visual"]
+        s.changes = [ChangeNote(scene=2, part="VO", before="Our coffee is the best.", after=s.scenes[1].vo or "New line",
+                                why="'Best' isn't on the product page, so the line now says what it actually does.")]
+        return s
+    store = LocalStore(tmp_path)
+    h = handlers()
+    h["refine"] = refined
+    llm = FakeLLM(h)
+    inputs = INPUTS.model_copy(update={"mode": "refine", "client_brief": "",
+                                       "client_script": "Scene 1: alarm rings. Scene 2: VO: Our coffee is the best."})
+    job = Pipeline(llm, store, page_override=parse_html(INPUTS.product_url, PRODUCT_HTML)).run(Job(id="r1", inputs=inputs))
+    assert "refine" in llm.calls and "concepts" not in llm.calls and "write" not in llm.calls
+    assert job.script.changes and job.script.changes[0].part == "VO"
+    html = render_script_html(job, DEFAULT_FORMAT)
+    assert "EDITED" in html and "What changed from the client" in html and "Our coffee is the best." in html
+    assert render_script_docx(job, DEFAULT_FORMAT)[:2] == b"PK"

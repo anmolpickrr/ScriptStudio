@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def utcnow() -> str:
@@ -40,7 +40,17 @@ class JobInputs(BaseModel):
             if v and "://" not in v:
                 v = "https://" + v.lstrip("/")
         return v
-    client_brief: str = Field(min_length=20, max_length=20000)
+    client_brief: str = Field("", max_length=20000)
+    mode: Literal["write", "refine"] = "write"            # refine = improve the client's own script, keep the rest
+    client_script: str = Field("", max_length=30000)
+
+    @model_validator(mode="after")
+    def _enough_to_work_with(self):
+        if self.mode == "refine" and len(self.client_script.strip()) < 40:
+            raise ValueError("Paste the client's script to refine (a few lines at least).")
+        if self.mode == "write" and len(self.client_brief.strip()) < 20:
+            raise ValueError("Add a sentence or two of brief.")
+        return self
     product_copy: str = Field("", max_length=20000)  # fallback/extra product text pasted by the user
     product_image_urls: list[Annotated[str, Field(max_length=2000, pattern=r"^https://")]] = Field([], max_length=4)
     platform: str = Field("instagram_reels", max_length=40)
@@ -194,12 +204,25 @@ class Character(BaseModel):
     role: str
     description: str  # age range, look, wardrobe, energy
     continuity: str   # what must stay identical across scenes
+    age_range: str = ""      # "28–34"
+    appearance: str = ""     # build, skin tone, hair, natural skin texture, grooming
+    personality: str = ""    # who they are, in a few words
+    expressions: str = ""    # how their face and body react across the story
+    wardrobe: str = ""
+    voice: str = ""          # language, accent, pace, pitch, how names are pronounced
+
+
+class Shot(BaseModel):
+    framing: str             # "CU", "MCU", "Wide", "Macro", "OTS"
+    camera: str              # angle + movement: "eye level, slow push-in", "high angle, locked off"
+    action: str              # what happens in this shot
+    seconds: float = 0
 
 
 class DialogueLine(BaseModel):
     character_id: str
     line: str
-    delivery: str  # e.g. "deadpan, under breath"
+    delivery: str = ""  # e.g. "deadpan, under breath"
 
 
 class Scene(BaseModel):
@@ -219,6 +242,11 @@ class Scene(BaseModel):
     props: list[str]
     product_fact_ids: list[str]  # every product claim in this scene must point at a fact
     sync_note: str            # why this picture belongs with this line
+    shots: list[Shot] = []    # the scene broken into shots
+    performance: str = ""     # expressions, gestures, energy of the people in frame
+    music: str = ""           # music cue for this scene
+    sfx: str = ""             # sound effects / natural sound
+    changed: list[str] = []   # refine mode: which parts were changed ("visual", "vo", "dialogue", ...)
 
 
 class CTA(BaseModel):
@@ -255,6 +283,24 @@ class Script(BaseModel):
     scenes: list[Scene]
     cta: CTA
     production_notes: list[str]
+    style: str = ""                       # realistic UGC, live action, 2D/3D animation, cartoon, motion graphics
+    look_and_texture: str = ""            # skin texture, grade, lighting, lens feel
+    voice_direction: str = ""             # language, accent, pace, energy of VO and dialogue
+    pronunciation: list[str] = []         # "Suroskie: soo-ROSS-kee"
+    music_direction: str = ""
+    sound_design: str = ""
+    changes: list["ChangeNote"] = []      # refine mode: every edit made to the client's script
+
+
+class ChangeNote(BaseModel):
+    scene: int = 0            # 0 = the whole script
+    part: str                 # "VO", "Visual", "Dialogue (Wife)", "Title", "CTA"
+    before: str
+    after: str
+    why: str
+
+
+Script.model_rebuild()
 
 
 # ---------------------------------------------------------------- quality control

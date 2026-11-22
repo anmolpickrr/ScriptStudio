@@ -20,8 +20,8 @@ from .house_format import FormatSpec
 from .ingest.product import _Extraction, _ExtractedFact, build_dossier, gather_source, PageSource
 from .llm import _extract_json
 from .qc.checks import run_checks
-from .schemas import (CTA, Character, Concept, ConceptDecision, ConceptScore, CreativeBrief, DialogueLine, FactCategory, Flag,
-                      Job, JobStatus, QCReport, RelayState, Revision, Scene, Script, StageEvent)
+from .schemas import (CTA, ChangeNote, Character, Concept, ConceptDecision, ConceptScore, CreativeBrief, DialogueLine, FactCategory, Flag,
+                      Job, JobStatus, QCReport, RelayState, Revision, Scene, Script, Shot, StageEvent)
 
 ENGINE_LABEL = {"chatgpt": "ChatGPT", "claude": "Claude"}
 MAX_SOURCE = 14000
@@ -39,6 +39,22 @@ class RelayFact(BaseModel):
 class LeanDialogue(BaseModel):
     character_id: str
     line: str
+    delivery: str = ""
+
+
+class LeanShot(BaseModel):
+    framing: str
+    camera: str
+    action: str
+    seconds: float = 0
+
+
+class LeanChange(BaseModel):
+    scene: int = 0
+    part: str
+    before: str
+    after: str
+    why: str
 
 
 class LeanScene(BaseModel):
@@ -53,12 +69,25 @@ class LeanScene(BaseModel):
     characters: list[str]
     product_fact_ids: list[str]
     sync_note: str
+    shot: str = ""
+    shots: list[LeanShot] = []
+    performance: str = ""
+    music: str = ""
+    sfx: str = ""
+    transition: str = ""
+    changed: list[str] = []
 
 
 class LeanCharacter(BaseModel):
     id: str
     name: str
     description: str
+    age_range: str = ""
+    appearance: str = ""
+    personality: str = ""
+    expressions: str = ""
+    wardrobe: str = ""
+    voice: str = ""
 
 
 class LeanCTA(BaseModel):
@@ -82,6 +111,13 @@ class LeanScript(BaseModel):
     continuity: list[str]
     scenes: list[LeanScene]
     cta: LeanCTA
+    style: str = ""
+    look_and_texture: str = ""
+    voice_direction: str = ""
+    pronunciation: list[str] = []
+    music_direction: str = ""
+    sound_design: str = ""
+    changes: list[LeanChange] = []
 
 
 class LeanBrief(BaseModel):
@@ -116,7 +152,8 @@ class RelayRevision(BaseModel):
 def _cast(lean: LeanScript) -> tuple[list[Character], Callable[[str], str]]:
     """Chats often name a character in scenes ("Creator", "Bruno") instead of using its id.
     Map every reference onto a defined character, defining it from the continuity notes when needed."""
-    chars = [Character(id=c.id, name=c.name, role=c.name, description=c.description, continuity="")
+    chars = [Character(id=c.id, name=c.name, role=c.name, description=c.description, continuity="",
+                       **c.model_dump(include={"age_range", "appearance", "personality", "expressions", "wardrobe", "voice"}))
              for c in lean.characters]
     known = {k.strip().lower(): c.id for c in chars for k in (c.id, c.name) if k.strip()}
     notes = {b.split(":", 1)[0].strip().lower(): b.split(":", 1) for b in lean.continuity if ":" in b}
@@ -137,19 +174,24 @@ def full_script(lean: LeanScript, job: Job) -> Script:
     """The lean answer as a complete Script (fields the chat skipped stay empty)."""
     i = job.inputs
     characters, ref = _cast(lean)
-    scenes = [Scene(number=sc.number, label=sc.label, start_sec=sc.start_sec, end_sec=sc.end_sec, location="", shot="",
-                    visual=sc.visual, vo=sc.vo,
-                    dialogue=[DialogueLine(character_id=ref(d.character_id), line=d.line, delivery="") for d in sc.dialogue],
-                    on_screen_text=sc.on_screen_text, sfx_music="", transition="",
+    scenes = [Scene(number=sc.number, label=sc.label, start_sec=sc.start_sec, end_sec=sc.end_sec, location="",
+                    shot=sc.shot, visual=sc.visual, vo=sc.vo,
+                    dialogue=[DialogueLine(character_id=ref(d.character_id), line=d.line, delivery=d.delivery)
+                              for d in sc.dialogue],
+                    on_screen_text=sc.on_screen_text, sfx_music="", transition=sc.transition,
                     characters=list(dict.fromkeys(ref(c) for c in sc.characters)), props=[],
-                    product_fact_ids=sc.product_fact_ids, sync_note=sc.sync_note) for sc in lean.scenes]
+                    product_fact_ids=sc.product_fact_ids, sync_note=sc.sync_note,
+                    shots=[Shot(**x.model_dump()) for x in sc.shots], performance=sc.performance, music=sc.music,
+                    sfx=sc.sfx, changed=sc.changed) for sc in lean.scenes]
     return Script(
         title=lean.title, logline=lean.logline, talent_summary=lean.talent_summary, product_line=lean.product_line,
         idea=lean.idea, small_print=lean.small_print, concept_summary=lean.idea or lean.logline, hook_type=lean.hook_type,
         theme=i.theme or "", audience=i.target_audience, tone=lean.tone or i.tone,
         characters=characters, continuity=lean.continuity, product_details=[], scenes=scenes,
         cta=CTA(line=lean.cta.line, visual="", on_screen_text=lean.cta.on_screen_text, action=lean.cta.action),
-        production_notes=[])
+        production_notes=[], style=lean.style, look_and_texture=lean.look_and_texture,
+        voice_direction=lean.voice_direction, pronunciation=lean.pronunciation, music_direction=lean.music_direction,
+        sound_design=lean.sound_design, changes=[ChangeNote(**c.model_dump()) for c in lean.changes])
 
 
 def _full_brief(b: LeanBrief, job: Job) -> CreativeBrief:
@@ -202,6 +244,24 @@ def _inputs_block(job: Job) -> str:
 def build_full_prompt(job: Job, spec: FormatSpec, source_text: str) -> str:
     i = job.inputs
     n = i.concept_count
+    refine = i.mode == "refine"
+    steps34 = (f"""3. CONCEPTS: one concept that names the client's own idea (title, one-line logline, hook line); \
+`chosen_index` 0.
+4. SCRIPT: refine the CLIENT SCRIPT below into `script`. Keep every line, visual and on-screen text that already works \
+word for word; change only what needs it (wrong or unverified product claims, timing, visual-VO mismatch, weak hook, \
+missing CTA or mandatories, ad-speak, anything unshootable) and fill what the client left out. Record EVERY edit in \
+`script.changes` (scene number or 0, part, before = their exact words or "", after, why in one plain sentence) and list \
+the edited parts in that scene's `changed` ("visual", "vo", "dialogue", "on_screen_text", "timing", "shot").""" if refine
+               else f"""3. CONCEPTS: {n} genuinely different concepts (different story engines), each just a title, a one-line \
+logline and its hook line. Pick the strongest in `chosen_index` (0-based).
+4. SCRIPT: write the chosen concept as `script`, following every rule below. `changes` stays [] and every scene's \
+`changed` stays [].""")
+    client_script = f"""
+CLIENT SCRIPT (the client's own draft, to refine, not replace):
+<<<
+{i.client_script}
+>>>
+""" if refine else ""
     return f"""You are ScriptStudio's creative team in one: a brand-accuracy specialist, a senior content strategist, an \
 award-winning creative director and a senior scriptwriter. Produce a production-ready video ad script.
 
@@ -210,10 +270,8 @@ WORK IN THIS ORDER (all inside one JSON answer):
 exact characters). Use ids F1, F2, … Never paraphrase inside `quote`. List what a writer needs but the page doesn't \
 state in `unknowns`.
 2. BRIEF: turn the client brief into `brief`. List every gap you filled in `brief.assumptions`.
-3. CONCEPTS: {n} genuinely different concepts (different story engines), each just a title, a one-line logline and \
-its hook line. Pick the strongest in `chosen_index` (0-based).
-4. SCRIPT: write the chosen concept as `script`, following every rule below. Every scene's `product_fact_ids` lists \
-the fact ids it uses; a product claim without a fact id is not allowed.
+{steps34}
+Every scene's `product_fact_ids` lists the fact ids it uses; a product claim without a fact id is not allowed.
 
 FORMAT RULES
 - Scenes are contiguous: scene 1 starts at 0, each starts where the previous ended, the last ends at exactly \
@@ -223,7 +281,8 @@ FORMAT RULES
 - `sync_note` = under 12 words on why the picture belongs with the words (required when there is VO or dialogue).
 - `continuity` = wardrobe, props, product state, time of day, everything that must match between scenes.
 - The CTA is delivered in the final scene and matches the brief and platform.
-- Be concise everywhere: no field longer than it needs to be. At most 12 facts, the ones the script uses first.
+- Be concise but complete: every production field filled, none longer than it needs to be. At most 12 facts, the
+  ones the script uses first.
 - `label` (per scene): the scene's role in 1–4 words, e.g. "Hook", "The surprise", "Reveal and benefits",
   "Gift and CTA". The last scene's label ends with "CTA".
 - `talent_summary`: who is on screen in one line, e.g. "Indian couple, wife 30–38 and husband 33–40, fully
@@ -241,12 +300,12 @@ FORMAT RULES
 - `small_print`: a legal / compliance small line when the category needs one (e.g. "Comfort product. Not a medical
   treatment."), otherwise "".
 - House editorial rules: {"; ".join(spec.editorial_notes) or "none"}
-{prompts.CRAFT}
-CLIENT BRIEF (source of truth for objective, message, tone and outcome):
+{prompts.PRODUCTION}{prompts.CRAFT}
+CLIENT BRIEF (source of truth for objective, message, tone and outcome; it may be rough notes, read for intent):
 <<<
-{i.client_brief}
+{i.client_brief.strip() or "(No separate brief: infer objective, audience and tone from the client script.)"}
 >>>
-
+{client_script}
 INPUTS
 {_inputs_block(job)}
 
@@ -280,7 +339,8 @@ QUALITY FINDINGS FROM THE AUTOMATED REVIEW:
 VERIFIED PRODUCT FACTS (the only product claims allowed; cite their ids in product_fact_ids):
 {facts or "- none"}
 
-{prompts.CRAFT}
+{"If the script has `changes` (it began as the client's script), keep those entries and add one for every new edit." if job.script and job.script.changes else ""}
+{prompts.PRODUCTION}{prompts.CRAFT}
 INPUTS
 {_inputs_block(job)}
 

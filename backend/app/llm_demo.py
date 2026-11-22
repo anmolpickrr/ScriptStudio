@@ -11,7 +11,7 @@ import re
 
 from pydantic import BaseModel
 
-from .schemas import (CTA, Beat, BeatSheet, Character, Concept, ConceptDecision, ConceptScore, ConceptSet,
+from .schemas import (CTA, Beat, BeatSheet, ChangeNote, Character, Concept, ConceptDecision, ConceptScore, ConceptSet,
                       CreativeBrief, CriticReport, CriticScores, DialogueLine, ProductDetail, Scene, Script)
 
 
@@ -52,7 +52,7 @@ class DemoLLM:
         self.product = title.split("–")[0].split("|")[0].strip()[:60] or "Product"
         facts = _facts_from_source(user)
         return {"product_name": self.product, "brand": "", "facts": facts, "packaging_description": "",
-                "unknowns": ["Demo mode: packaging and claims were not analysed by AI"]}
+                "unknowns": ["Demo mode: packaging and claims were not analysed"]}
 
     def _parse_brief(self, user):
         brief = _between(user, "CLIENT BRIEF:", "USER INPUTS:")
@@ -114,16 +114,22 @@ class DemoLLM:
                                 on_screen_text="Shop now" if i == 3 else "", sfx_music="Light acoustic bed",
                                 transition="Cut on action" if i < 3 else "", characters=["C1"], props=[],
                                 product_fact_ids=fids, sync_note="Line delivered on camera as the action happens"))
-        return Script(title=f"{self.product} – demo script", logline="Demo output (no AI model connected).",
+        return Script(title=f"{self.product} – demo script", logline="Demo output (no writing model connected).",
                       concept_summary="Structural placeholder generated in demo mode.", hook_type="relatable_moment",
                       theme="Everyday use", audience="Per brief", tone="Conversational",
                       characters=[Character(id="C1", name="Creator", role="Host",
-                                            description="Late 20s, casual everyday clothes", continuity="Same outfit throughout")],
+                                            description="Late 20s, casual everyday clothes", continuity="Same outfit throughout",
+                                            age_range="26–30", appearance="Medium build, natural skin with visible texture, hair tied back",
+                                            personality="Warm, quick, a little dry", expressions="Curious at first, relieved by the end",
+                                            wardrobe="Plain cotton tee, light denim", voice="English with a light Indian accent, relaxed pace")],
+                      style="Realistic UGC", look_and_texture="Soft window light, natural skin texture, no beauty filter",
+                      voice_direction="Conversational, like talking to a friend on a video call",
+                      music_direction="Light acoustic bed, lifts at the CTA", sound_design="Room tone, cap click, fabric rustle",
                       continuity=["Same outfit, same room, daylight throughout"],
                       product_details=[ProductDetail(fact_id=f[0], statement=f[1]) for f in facts],
                       scenes=scenes, cta=CTA(line="Link's below.", visual="Product beside face",
                                              on_screen_text="Shop now", action="Tap Shop Now"),
-                      production_notes=["DEMO MODE: replace with a real AI-generated script before production."])
+                      production_notes=["DEMO MODE: replace with a real script before production."])
 
     def _critic(self, user):
         return CriticReport(scores=CriticScores(hook_strength=3, story_logic=4, visual_vo_sync=4, dialogue_quality=3,
@@ -132,3 +138,17 @@ class DemoLLM:
 
     def _revise(self, user):
         return self._write(user)
+
+    def _refine(self, user):
+        """Demo refine: the client's first line is kept, one line is tightened and recorded as a change."""
+        sc = self._write(user)
+        client = _between(user, "CLIENT SCRIPT (keep what works word for word):", "MANDATORIES") or ""
+        first = next((l.strip() for l in client.splitlines() if l.strip()), "")
+        if first:
+            sc.scenes[0].dialogue[0].line = first[:120]
+        before = sc.scenes[1].visual
+        sc.scenes[1].visual = before.replace("Hands pick up", "Close on hands lifting")
+        sc.scenes[1].changed = ["visual"]
+        sc.changes = [ChangeNote(scene=2, part="Visual", before=before, after=sc.scenes[1].visual,
+                                 why="A tighter frame keeps the product readable on a phone screen.")]
+        return sc

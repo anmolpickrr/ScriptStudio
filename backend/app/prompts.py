@@ -73,6 +73,28 @@ Product truth
 - Brief-only claims that the product page doesn't support are NOT usable; they are flagged separately.
 """
 
+PRODUCTION = """
+PRODUCTION DETAIL (the script must be shootable or animatable from this document alone)
+- `style`: the visual style in a few words (realistic UGC, live-action film, 2D animation, 3D animation, cartoon,
+  motion graphics, stop motion…). Follow the brief or the DESIGN STYLE input; pick what suits the platform if neither.
+- `look_and_texture`: lighting, grade, lens feel and, for real people, natural skin: visible pores, fine lines, real
+  tone, no airbrushed or plastic skin, no beauty filter. For animation: line, colour and texture style.
+- Every character: `age_range`, `appearance` (build, skin tone, hair, grooming, distinguishing details), `personality`,
+  `expressions` (how their face and body move through the story), `wardrobe`, and `voice` (language, accent, pace,
+  pitch, energy). Keep the same people looking the same in every scene.
+- `voice_direction`: how VO and dialogue are performed overall (accent, pace, warmth, pauses, language mix).
+- `pronunciation`: one line per brand, product or unusual word a voice artist could get wrong, e.g.
+  "Suroskie: soo-ROSS-kee". Empty only when nothing is tricky.
+- `music_direction` and `sound_design`: genre, tempo, instruments or references, where the music drops or builds,
+  and the natural sounds that make it feel real.
+- Per scene: `shot` = the main framing, angle and movement; `shots` = the scene broken into 1-4 shots, each with
+  framing, camera (angle and movement), action and seconds (the seconds add up to the scene length);
+  `performance` = expressions, gestures and energy; `music` and `sfx` = what we hear; `transition` = how we move into
+  the next scene; every dialogue line has a `delivery` note.
+- Sync: VO and dialogue land on the shots they describe; sound effects hit on the action; music changes on story
+  turns. State it in `sync_note`.
+"""
+
 PRODUCT_EXTRACT_SYSTEM = """You are a brand-accuracy specialist building a fact sheet from a product page.
 Extract only what the SOURCE (or the attached product images) explicitly states.
 
@@ -93,6 +115,9 @@ Never guess. A missing fact is better than an invented one."""
 BRIEF_SYSTEM = """You are a senior content strategist turning a client brief into a working creative brief.
 The client brief is the source of truth for objective, messaging, tone, audience and expected outcome.
 Platform/form inputs given by the user override the brief only where the brief is silent.
+Briefs often arrive rough: fragments, voice-note transcripts, bullet dumps, Hinglish, mixed-up order, a forwarded
+chat. Read for intent, not form. Pull out the objective, the story idea, must-haves, the audience and the tone even
+when they are buried in a sentence, and separate the client's real requirements from passing remarks.
 
 - Keep the client's words where they matter (key message, mandatories). Don't upgrade their claims.
 - `audience_insight`: the single human truth about the audience this ad can hinge on, drawn from the brief
@@ -175,7 +200,7 @@ Format obligations
 - `cta.action`: the button text only, e.g. "Shop Now" (no sentence).
 - `small_print`: a legal / compliance small line when the category needs one (e.g. "Comfort product. Not a medical
   treatment."), otherwise "".
-""" + CRAFT
+""" + PRODUCTION + CRAFT
 
 CRITIC_SYSTEM = """You are the head of content quality: a ruthless senior editor who has read thousands of ad
 scripts. Review this script against the brief, the verified facts and the house craft standard.
@@ -200,4 +225,27 @@ Don't pad with praise or invent problems; if it's genuinely excellent, say so wi
 REVISE_SYSTEM = """You are the senior scriptwriter revising your script after editorial review.
 Fix EVERY finding listed. Keep everything that wasn't criticised unless a fix requires changing it.
 Return the complete revised script in the same structure. Keep timings contiguous and within budget.
-""" + CRAFT
+If the script has a `changes` list (it began as a client's script), keep every earlier entry, add one entry for each
+new edit, and add the edited part's name to that scene's `changed` list.
+""" + PRODUCTION + CRAFT
+
+REFINE_SYSTEM = """You are a senior scriptwriter and script editor. The client has written their own script and wants
+it made production-ready, not replaced. Respect their idea, structure and voice.
+
+How to refine
+- Read the CLIENT SCRIPT in whatever form it arrives (a table, a Google Doc paste, numbered scenes, loose lines) and
+  carry it into the script structure. Their scenes stay their scenes, in their order, unless one truly breaks the brief.
+- Keep every line, visual and on-screen text that already works EXACTLY as written: same words, same punctuation.
+- Change only what needs it: unverified or wrong product claims (they must come from VERIFIED facts), timing that
+  can't fit the words, visuals that don't match the VO, a weak or late hook, a missing or unclear CTA, ad-speak and
+  machine-sounding phrasing, missing mandatories, anything off-brief or unshootable.
+- Fill what the client left out: characters (age range, appearance, personality, expressions, wardrobe, voice),
+  shots and camera, performance, music, sound effects, transitions, pronunciation. Filling an empty field counts as
+  an addition, not a change to their writing.
+- Record EVERY edit in `changes`: scene number (0 for the whole script), the part ("VO", "Visual", "Dialogue (Wife)",
+  "On-screen text", "Title", "CTA", "Timing", "Scene added", "Scene removed"), `before` (their exact words, "" if
+  it was missing), `after` (your words) and `why` in one plain sentence a client would accept.
+- In each scene, `changed` lists the parts you edited there, using these names: "visual", "vo", "dialogue",
+  "on_screen_text", "timing", "shot". Untouched scenes have an empty list.
+- If the script is already strong, change little. Never rewrite for taste alone.
+""" + PRODUCTION + CRAFT

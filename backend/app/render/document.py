@@ -219,6 +219,8 @@ def build(job: Job, spec: FormatSpec, include_qc: bool = False) -> list[Part]:
 class SheetScene:
     heading: str                        # "Scene 1 (Hook)"
     lines: list[tuple[str, str]]        # ("Visual", "..."), ("VO (Wife)", "“...”"), ("On-screen text", "...")
+    changed: set = field(default_factory=set)   # labels of lines edited from the client's script
+    heading_changed: bool = False                # timing / whole scene edited
 
 
 @dataclass
@@ -234,6 +236,9 @@ class Sheet:
     disclaimer: str
     scenes: list[SheetScene]
     small_line: str = ""
+    cast: list[tuple[str, str]] = field(default_factory=list)        # ("Wife", "31–36. Slim, wheatish skin… Voice: …")
+    look_sound: list[tuple[str, str]] = field(default_factory=list)  # ("Look & texture", …), ("Music", …)
+    changes: list = field(default_factory=list)                      # ChangeNote list (refine mode)
 
 
 def _split_label(text: str) -> tuple[str, str]:
@@ -324,7 +329,8 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
         or i.creative_direction or "Product only (no talent)"
     product = s.product_line or (d.name if d and d.name else "") or (i.brand_name or "")
     cta = i.cta or _button(s.cta.action) or _button(s.cta.on_screen_text) or s.cta.line
-    header = [("Model", model), ("Language", i.language), ("Image Source", i.image_source or "Web"),
+    header = [("Model", model), ("Style", s.style or i.design_style), ("Language", i.language),
+              ("Voice", s.voice_direction), ("Image Source", i.image_source or "Web"),
               ("Subtitle", "Yes" if i.subtitles else "No"),
               ("Format", f"{plat['label']} · {i.duration_sec}s · {i.aspect_ratio or plat['aspect']}"),
               ("Product", product), ("Product Link", i.product_url), ("CTA", cta),
@@ -345,17 +351,58 @@ def build_sheet(job: Job, spec: FormatSpec) -> Sheet:
 
     scenes = []
     for sc in s.scenes:
-        lines: list[tuple[str, str]] = [("Visual", sc.visual)]
+        lines: list[tuple[str, str]] = []
+        if sc.shot:
+            lines.append(("Camera", sc.shot))
+        lines.append(("Visual", sc.visual))
+        if sc.shots:
+            lines.append(("Shots", "  ".join(
+                f"{n}) {x.framing}, {x.camera}: {x.action}" + (f" ({x.seconds:g}s)" if x.seconds else "")
+                for n, x in enumerate(sc.shots, 1))))
+        if sc.performance:
+            lines.append(("Performance", sc.performance))
         if sc.vo:
             lines.append(("VO", _quoted(sc.vo)))
         for dl in sc.dialogue:
-            lines.append((f"VO ({names.get(dl.character_id, dl.character_id)})", _quoted(dl.line)))
+            lines.append((f"VO ({names.get(dl.character_id, dl.character_id)})",
+                          _quoted(dl.line) + (f" ({dl.delivery.strip().rstrip('.')})" if dl.delivery.strip() else "")))
         if sc.on_screen_text:
             lines.append(("On-screen text", sc.on_screen_text))
+        if sc.music:
+            lines.append(("Music", sc.music))
+        if sc.sfx or sc.sfx_music:
+            lines.append(("SFX", sc.sfx or sc.sfx_music))
+        if sc.transition:
+            lines.append(("Transition", sc.transition))
         label = sc.label.strip() or ("Hook" if sc.number == 1 else "CTA" if sc is s.scenes[-1] else "")
-        scenes.append(SheetScene(f"Scene {sc.number}" + (f" ({label})" if label else ""), lines))
+        changed = {lbl for lbl, _ in lines if _part(lbl) in {c.lower() for c in sc.changed}}
+        scenes.append(SheetScene(f"Scene {sc.number}" + (f" ({label})" if label else ""), lines, changed,
+                                 "timing" in {c.lower() for c in sc.changed}))
+
+    cast = []
+    for c in s.characters:
+        bits = [c.age_range and f"Age {c.age_range}", c.appearance, c.personality and f"Personality: {c.personality}",
+                c.expressions and f"Expressions: {c.expressions}", c.wardrobe and f"Wardrobe: {c.wardrobe}",
+                c.voice and f"Voice: {c.voice}"]
+        bits = [b.strip().rstrip(".") for b in bits if b and b.strip()]
+        if bits:
+            cast.append((c.name, ". ".join(bits) + "."))
+    look_sound = [(k, v) for k, v in (("Look & texture", s.look_and_texture), ("Music", s.music_direction),
+                                       ("Sound design", s.sound_design),
+                                       ("Pronunciation", "; ".join(x for x in s.pronunciation if x.strip())))
+                  if v and v.strip()]
 
     short = product_name(job)
     names = [n for n in (short, d.name if d else "", re.split(r"\s*[(\[]", s.product_line)[0].strip()) if n]
     return Sheet(file_name(job), brand_of(job), i.product_url, names, i.client_brief.strip(),
-                 "SCRIPT", [(k, v) for k, v in header if v], continuity, spec.disclaimer, scenes, s.small_print.strip())
+                 "SCRIPT", [(k, v) for k, v in header if v], continuity, spec.disclaimer, scenes, s.small_print.strip(),
+                 cast, look_sound, list(s.changes))
+
+
+def _part(label: str) -> str:
+    """Sheet line label -> the part name a refine edit is recorded under."""
+    l = label.lower()
+    if l.startswith("vo ("):
+        return "dialogue"
+    return {"vo": "vo", "visual": "visual", "on-screen text": "on_screen_text", "camera": "shot", "shots": "shot",
+            "performance": "visual"}.get(l, l)

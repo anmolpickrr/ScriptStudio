@@ -11,6 +11,7 @@ import io
 from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
@@ -128,18 +129,37 @@ def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
         for t, u in doc.link_spans(v, sh.product_names, sh.product_url):
             out.link(p, u, t) if u else out.run(p, t)
 
-    def line(k: str, v: str, indent: bool = False, before: int = 0):
+    def line(k: str, v: str, indent: bool = False, before: int = 0, changed: bool = False):
         p = out.para(before=before, after=3)
         if indent:
             p.paragraph_format.left_indent = Inches(0.2)
         out.run(p, f"{k}: ", bold=True)
         out.link(p, v, v) if k == "Product Link" else text(p, v)
+        if changed:  # edited from the client's script: highlighted like a marker pen
+            for r in p.runs:
+                r.font.highlight_color = WD_COLOR_INDEX.YELLOW
+            out.run(p, "  EDITED", bold=True, size=st.body_pt - 3, color="#4d6a00")
+
+    def block(title: str, rows):
+        if not rows:
+            return
+        out.para(title, bold=True, before=12, after=3)
+        for k, v in rows:
+            p = out.d.add_paragraph(style="List Bullet")
+            out.run(p, f"{k}: ", bold=True)
+            text(p, v)
 
     p = out.para(after=12)
     out.run(p, "File name: ", size=st.body_pt + 1, color="#666666")
     out.run(p, sh.file_name, bold=True, size=st.body_pt + 1)
     out.para(sh.title, bold=True, size=st.h1_pt, color=st.title_hex, after=2)
     out.para(f"BRAND: {sh.brand}", bold=True, size=st.h2_pt, after=10)
+    if sh.changes:
+        p = out.para(after=10)
+        r = out.run(p, f"Refined from the client's script: {len(sh.changes)} change{'s' if len(sh.changes) != 1 else ''}. ",
+                    bold=True)
+        r.font.highlight_color = WD_COLOR_INDEX.YELLOW
+        out.run(p, "Edited lines are highlighted; everything else is the client's original. The full list is at the end.")
     for k, v in sh.header:
         line(k, v)
     out.para("Continuity (same in every scene)", bold=True, before=12, after=3)
@@ -148,13 +168,30 @@ def _sheet_docx(out: _Doc, job: Job, spec: FormatSpec) -> None:
         if k:
             out.run(p, f"{k}: ", bold=True)
         text(p, v)
+    block("Cast", sh.cast)
+    block("Look & sound", sh.look_sound)
     line("Disclaimer", sh.disclaimer, before=16)
     for sc in sh.scenes:
-        out.para(sc.heading, bold=True, before=12, after=3)
+        p = out.para(sc.heading, bold=True, before=12, after=3)
+        if sc.heading_changed:
+            out.run(p, "  (TIMING EDITED)", size=st.body_pt - 3, color="#4d6a00")
         for k, v in sc.lines:
-            line(k, v, indent=True)
+            line(k, v, indent=True, changed=k in sc.changed)
     if sh.small_line:
         line("Small line", doc._quoted(sh.small_line), before=12)
+    if sh.changes:
+        out.para("What changed from the client's script", bold=True, before=18, after=4)
+        for c in sh.changes:
+            p = out.para(before=4, after=1)
+            out.run(p, f"Scene {c.scene} · {c.part}" if c.scene else c.part, bold=True)
+            if c.before:
+                r = out.run(out.para(after=1), c.before, color="#888888")
+                r.font.strike = True
+            else:
+                out.para("(added)", color="#888888", after=1)
+            r = out.run(out.para(after=1), c.after)
+            r.font.highlight_color = WD_COLOR_INDEX.YELLOW
+            out.para(f"Why: {c.why}", size=st.body_pt - 1, color="#666666", after=6)
     if sh.client_brief:  # the original brief, on its own page, for reference
         out.d.add_page_break()
         out.para("CLIENT BRIEF (REFERENCE)", bold=True, size=st.h1_pt, color=st.title_hex, after=4)

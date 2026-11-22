@@ -93,11 +93,15 @@ class Pipeline:
             self._ingest(job)
             self._brief(job, spec)
             self._reconcile(job, spec)
+            if job.inputs.mode == "refine":
+                self._refine(job, spec)
+                self._qc_loop(job, spec)
+                return
             concept = self._concepts(job, spec)
             self._beats(job, spec, concept)
             self._write(job, spec, concept)
             self._qc_loop(job, spec)
-        return self._execute(job, steps, "Full generation")
+        return self._execute(job, steps, "Refine client script" if job.inputs.mode == "refine" else "Full generation")
 
     def rerun_with_concept(self, job: Job, index: int, by: str = "") -> Job:
         """Rewrite from the beat sheet using a different explored concept."""
@@ -165,7 +169,10 @@ class Pipeline:
         refs, flags = describe_references(job.inputs.references)
         job.flags += flags
         i = job.inputs
-        user = (f"CLIENT BRIEF:\n{i.client_brief}\n\nUSER INPUTS:\n" +
+        brief = i.client_brief.strip() or "(No separate brief. Infer objective, audience and tone from the client script.)"
+        script = f"\n\nCLIENT SCRIPT (the client's own draft; it shows their intent):\n{i.client_script}" \
+            if i.mode == "refine" else ""
+        user = (f"CLIENT BRIEF:\n{brief}{script}\n\nUSER INPUTS:\n" +
                 json.dumps({"target_audience": i.target_audience, "tone": i.tone, "theme": i.theme,
                             "hook_type": i.hook_type, "creative_direction": i.creative_direction,
                             "mandatories": i.mandatories, "exclusions": i.exclusions,
@@ -227,6 +234,15 @@ class Pipeline:
                 + (f"\n\n{examples}" if examples else ""))
         job.script = self.llm.structured(stage="write", system=prompts.WRITE_SYSTEM, user=user, schema=Script)
         self._stage(job, "write", "done", f"{len(job.script.scenes)} scenes")
+
+    def _refine(self, job: Job, spec: FormatSpec):
+        """Carry the client's own script into the house structure, changing only what needs it."""
+        self._stage(job, "refine", "started")
+        user = (self._context(job, spec) + f"\n\nCLIENT SCRIPT (keep what works word for word):\n{job.inputs.client_script}"
+                f"\n\nMANDATORIES (verbatim): {json.dumps(job.inputs.mandatories + job.brief.mandatories)}"
+                f"\nEXCLUSIONS: {json.dumps(job.inputs.exclusions + job.brief.exclusions)}")
+        job.script = self.llm.structured(stage="refine", system=prompts.REFINE_SYSTEM, user=user, schema=Script)
+        self._stage(job, "refine", "done", f"{len(job.script.changes)} change(s)")
 
     # ---------------------------------------------------------------- QC
     def review(self, job: Job, spec: FormatSpec, iteration: int) -> QCReport:
@@ -293,10 +309,10 @@ def _friendly(e: Exception) -> str:
     msg = str(e) or e.__class__.__name__
     low = msg.lower()
     if "api key" in low or "401" in low or "authentication" in low:
-        return "The AI service rejected our credentials. An admin needs to check OPENAI_API_KEY."
+        return "The writing service rejected our credentials. An admin needs to check the API key in Render."
     if "429" in low or "rate limit" in low or "quota" in low or "resource_exhausted" in low:
-        return ("The AI service's usage limit was reached (free tiers allow a set number of requests per minute "
+        return ("The writing service's usage limit was reached (free tiers allow a set number of requests per minute "
                 "and per day). Try again in a few minutes, or tomorrow if the daily limit is used up.")
     if "model" in low and ("not found" in low or "does not exist" in low):
-        return f"The configured AI model isn't available on this account ({msg[:160]})."
+        return f"The configured writing model isn't available on this account ({msg[:160]})."
     return msg[:500]

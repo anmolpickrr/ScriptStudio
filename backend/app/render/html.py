@@ -104,25 +104,52 @@ def _sheet_html(job: Job, spec: FormatSpec, st: _Styles) -> list[str]:
         return "".join(f"<a href='{_e(u)}'>{_e(t)}</a>" if u else _e(t)
                        for t, u in doc.link_spans(v, sh.product_names, sh.product_url))
 
-    def line(k: str, v: str) -> str:
+    HL = "background:#f4ffb3;border-left:3px solid #8aa000;padding:2pt 5pt;margin-left:-8pt;"
+
+    def line(k: str, v: str, changed: bool = False) -> str:
         val = f"<a href='{_e(v)}'>{_e(v)}</a>" if k == "Product Link" else text(v)
-        return f"<p style='{p}'><b>{_e(k)}:</b> {val}</p>"
+        tag = " <span style='font-size:8pt;font-weight:bold;color:#4d6a00;letter-spacing:.5px;'>EDITED</span>" if changed else ""
+        return f"<p style='{p}{HL if changed else ''}'><b>{_e(k)}:</b> {val}{tag}</p>"
+
+    def block(title: str, rows) -> None:
+        if not rows:
+            return
+        out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>{_e(title)}</p>")
+        out.append(f"<ul style='{st.ul}'>" + "".join(f"<li style='{st.li}'><b>{_e(k)}:</b> {text(v)}</li>" for k, v in rows)
+                   + "</ul>")
 
     out = [f"<p style='{f}font-size:{spec.style.body_pt + 1}pt;margin:0 0 12pt 0;padding-bottom:6pt;"
            f"border-bottom:1px solid {spec.style.rule_hex};'><span style='color:#666666;'>File name:</span> "
            f"<b>{_e(sh.file_name)}</b></p>",
            f"<h1 style='{st.title}margin-top:0;margin-bottom:2pt;'>{_e(sh.title)}</h1>",
            f"<p style='{st.brand}margin-bottom:10pt;'>BRAND: {_e(sh.brand)}</p>"]
+    if sh.changes:
+        out.append(f"<div style='{f}background:#f4ffb3;border-radius:6pt;padding:8pt 10pt;margin:0 0 12pt 0;'>"
+                   f"<b>Refined from the client's script: {len(sh.changes)} change{'s' if len(sh.changes) != 1 else ''}.</b> "
+                   "Edited lines are highlighted; everything else is the client's original. The full list is at the end.</div>")
     out += [line(k, v) for k, v in sh.header]
     out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>Continuity (same in every scene)</p>")
     lis = "".join(f"<li style='{st.li}'>" + (f"<b>{_e(k)}:</b> " if k else "") + f"{text(v)}</li>" for k, v in sh.continuity)
     out.append(f"<ul style='{st.ul}'>{lis}</ul>")
+    block("Cast", sh.cast)
+    block("Look & sound", sh.look_sound)
     out.append(f"<p style='{f}margin:16pt 0 16pt 0;'><b>Disclaimer:</b> {_e(sh.disclaimer)}</p>")
     for sc in sh.scenes:
-        out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>{_e(sc.heading)}</p>")
-        out.append("<div style='margin-left:14pt;'>" + "".join(line(k, v) for k, v in sc.lines) + "</div>")
+        retimed = " <span style='font-size:8pt;color:#4d6a00;'>(TIMING EDITED)</span>" if sc.heading_changed else ""
+        out.append(f"<p style='{f}font-weight:bold;margin:12pt 0 3pt 0;'>{_e(sc.heading)}{retimed}</p>")
+        out.append("<div style='margin-left:14pt;'>" + "".join(line(k, v, k in sc.changed) for k, v in sc.lines) + "</div>")
     if sh.small_line:
         out.append(f"<p style='{f}margin:12pt 0 0 0;'><b>Small line:</b> {_e(doc._quoted(sh.small_line))}</p>")
+    if sh.changes:
+        out.append(f"<p style='{f}font-weight:bold;margin:18pt 0 4pt 0;'>What changed from the client's script</p>")
+        for c in sh.changes:
+            where = f"Scene {c.scene} · {c.part}" if c.scene else c.part
+            out.append(f"<div style='{f}margin:0 0 8pt 0;padding:6pt 8pt;border:1px solid #e2ded5;border-radius:6pt;'>"
+                       f"<b>{_e(where)}</b><br>"
+                       + (f"<span style='color:#888;text-decoration:line-through;'>{_e(c.before)}</span><br>" if c.before else
+                          "<span style='color:#888;'>(added)</span><br>")
+                       + f"<span style='background:#f4ffb3;'>{_e(c.after)}</span><br>"
+                         f"<span style='color:#666;font-size:9pt;'>Why: {_e(c.why)}</span></div>")
     if sh.client_brief:  # the original brief, on its own page, for reference
         out.append(f"<hr style='{st.rule}margin-top:40pt;page-break-before:always;break-before:page;'>")
         out.append(f"<h1 style='{st.title}'>CLIENT BRIEF (REFERENCE)</h1>")

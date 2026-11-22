@@ -39,9 +39,12 @@ def test_post_without_csrf_header_is_rejected(client):
 
 
 def test_validation_errors_are_readable(client):
-    r = client.post("/api/jobs", json={**BODY, "client_brief": "short", "duration_sec": 999}, headers=H)
-    assert r.status_code == 422
-    assert "client_brief" in r.json()["detail"] and "duration_sec" in r.json()["detail"]
+    r = client.post("/api/jobs", json={**BODY, "duration_sec": 999}, headers=H)
+    assert r.status_code == 422 and "duration_sec" in r.json()["detail"]
+    r = client.post("/api/jobs", json={**BODY, "client_brief": "short"}, headers=H)
+    assert r.status_code == 422 and "sentence or two of brief" in r.json()["detail"]
+    r = client.post("/api/jobs", json={**BODY, "mode": "refine", "client_script": "too short"}, headers=H)
+    assert r.status_code == 422 and "client's script" in r.json()["detail"]
 
 
 def test_private_urls_are_rejected(client, monkeypatch):
