@@ -221,7 +221,7 @@ def check_authenticity(script, dossier) -> list[QCFinding]:
         for t in playbook.FAKE_VISUAL_TERMS:
             if t in vis:
                 out.append(QCFinding(check="authenticity", severity="major", scene=s.number,
-                                     message=f"Scene {s.number} visual includes '{t}', which reads as AI-generated or unshootable.",
+                                     message=f"Scene {s.number} visual includes '{t}', which can't be shot honestly or reads as fake.",
                                      fix="Replace with a real, practical action or in-camera effect."))
         if not has_cert:
             for t in playbook.CLAIM_VISUAL_TERMS:
@@ -248,7 +248,7 @@ def check_language(script) -> list[QCFinding]:
                                      fix="Say it the way a real person would."))
         if re.search(r"[—–]", spoken_text(s) + " " + s.on_screen_text):
             out.append(QCFinding(check="voice", severity="minor", scene=s.number,
-                                 message=f"Scene {s.number} uses a dash in a spoken line or super, which reads as AI-written.",
+                                 message=f"Scene {s.number} uses a dash in a spoken line or super, which reads as machine-written rather than spoken.",
                                  fix="Use a full stop or a comma instead."))
         for d in s.dialogue:
             if words(d.line) > 25:
@@ -258,7 +258,7 @@ def check_language(script) -> list[QCFinding]:
     stock = sum(1 for f in out if f.check == "dialogue_quality" and "cliché" in f.message)
     if stock >= 3:
         out.append(QCFinding(check="voice", severity="major",
-                             message=f"{stock} stock ad phrases across the script; it reads like generic AI copy.",
+                             message=f"{stock} stock ad phrases across the script; it reads like generic template copy.",
                              fix="Rewrite those lines in plain, specific words this audience would actually say."))
     return out
 

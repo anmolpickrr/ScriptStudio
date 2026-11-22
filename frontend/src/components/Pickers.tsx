@@ -101,6 +101,8 @@ export function StoryFields({ f, set }: { f: JobInputs; set: <K extends keyof Jo
 
 // ---------------------------------------------------------------- spec bar: every format and story choice as one row of pills
 const TONES = ["Warm", "Playful", "Witty", "Emotional", "Premium", "Festive", "Bold", "Calm"];
+const STYLES = ["Realistic UGC", "Live-action film", "Lifestyle", "Premium studio", "2D animation", "3D animation", "Cartoon",
+  "Motion graphics", "Stop motion"];
 const OCCASIONS = ["Diwali", "Raksha Bandhan", "Karwa Chauth", "Holi", "Eid", "Christmas", "Valentine's Day", "Mother's Day", "Wedding season", "Monsoon sale"];
 
 function Pop({ label, icon, value, empty, wide, children }: {
@@ -187,6 +189,9 @@ export function SpecBar({ f, set }: { f: JobInputs; set: <K extends keyof JobInp
             <Choice key={r} on={aspect === r} hint={r === plat?.aspect ? "Platform default" : undefined} onClick={() => { set("aspect_ratio", r === plat?.aspect ? null : r); close(); }}>
               <span className="pop-ic"><i className="ratio" style={{ aspectRatio: `${a} / ${b}`, [a >= b ? "width" : "height"]: 14 }} /></span>{r}</Choice>);
         })}
+      </Pop>
+      <Pop label="Style" value={f.design_style || "Auto"} wide>
+        {(close) => <TextPick value={f.design_style} onChange={(v) => set("design_style", v)} picks={STYLES} placeholder="Or describe it, e.g. claymation, anime" close={close} />}
       </Pop>
       <span className="spec-sep" aria-hidden="true" />
       <Pop label="Hook" value={f.hook_type ? hookName(f.hook_type) : "Auto"} wide>

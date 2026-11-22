@@ -16,7 +16,7 @@ const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
 ];
 const AD_TYPES = ["Video", "UGC video", "Product demo", "Testimonial", "Unboxing", "Explainer", "Lifestyle film"];
 const DESIGN_STYLES = ["Creator / UGC", "Lifestyle", "Premium studio", "Minimal product", "Documentary", "Animated / motion"];
-const IMAGE_SOURCES = ["Web", "Client assets", "AI generated", "Fresh shoot"];
+const IMAGE_SOURCES = ["Web", "Client assets", "Generated visuals", "Fresh shoot"];
 
 const optUrl = (u: string) => !u.trim() || validUrl(u);
 
@@ -66,7 +66,9 @@ export default function NewScript() {
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
     if (!validUrl(f.product_url)) e.product_url = "Paste the product page link, e.g. brand.com/products/…";
-    if (composed.trim().length < 20) e.client_brief = "Add the brief or creative direction — a couple of sentences is enough.";
+    if (f.mode === "refine") {
+      if (f.client_script.trim().length < 40) e.client_script = "Paste the client's script (a few lines at least).";
+    } else if (composed.trim().length < 20) e.client_brief = "Add the brief or creative direction. A couple of sentences is enough.";
     if (!optUrl(f.logo_url)) e.logo_url = "Use a full link starting with https://";
     if (!optUrl(f.brand_guidelines_url)) e.brand_guidelines_url = "Use a full link starting with https://";
     if (f.asset_links.some((u) => !validUrl(u))) e.asset_links = "Each product image/video link must start with https://";
@@ -74,7 +76,7 @@ export default function NewScript() {
     return e;
   }, [f, composed]);
   const show = (k: string) => (touched[k] || touched._submit) && errors[k];
-  const ready = !errors.product_url && !errors.client_brief;
+  const ready = !errors.product_url && !errors.client_brief && !errors.client_script;
   const doneCount = [!errors.product_url, !errors.client_brief, !!f.creative_direction, !!f.cta].filter(Boolean).length;
   const blur = (k: string) => () => setTouched((t) => ({ ...t, [k]: true }));
 
@@ -112,7 +114,7 @@ export default function NewScript() {
     } catch (e) { toast((e as Error).message, "error"); setBusy(false); }
   };
 
-  const cta = "Write script";
+  const cta = f.mode === "refine" ? "Refine script" : "Write script";
   const engine = ENGINES.find((e) => e.key === f.engine)!;
 
   return (
@@ -144,7 +146,7 @@ export default function NewScript() {
               {ENGINES.map((e) => (
                 <button type="button" role="radio" aria-checked={f.engine === e.key} key={e.key}
                         className={f.engine === e.key ? "on" : ""} onClick={() => set("engine", e.key)}>
-                  <span className={`dotlogo ${e.cls}`}>{e.logo}</span>{e.key === "auto" ? "ScriptStudio AI" : `Your ${ENGINE_NAME[e.key]}`}
+                  <span className={`dotlogo ${e.cls}`}>{e.logo}</span>{e.key === "auto" ? "ScriptStudio" : `Your ${ENGINE_NAME[e.key]}`}
                   {e.key === "auto" && <span className="free">Free</span>}
                 </button>
               ))}
@@ -155,11 +157,24 @@ export default function NewScript() {
           <section className="form-section essentials">
             <h2 className="sec-title"><span className={`num ${ready ? "done" : ""}`}>{ready ? "✓" : 1}</span>The essentials</h2>
             <p className="hint" style={{ marginTop: 2 }}>That's all we need. Everything else is optional.</p>
+            <div className="mode-switch" role="radiogroup" aria-label="What are we doing?">
+              <button type="button" role="radio" aria-checked={f.mode !== "refine"} className={f.mode !== "refine" ? "on" : ""} onClick={() => set("mode", "write")}>
+                <Icon.pen /> Write a new script</button>
+              <button type="button" role="radio" aria-checked={f.mode === "refine"} className={f.mode === "refine" ? "on" : ""} onClick={() => set("mode", "refine")}>
+                <Icon.refine /> Refine a client's script</button>
+            </div>
             <Field id="product_url" label="Product link" required error={show("product_url")}>
               <input id="product_url" type="url" inputMode="url" value={f.product_url} className={show("product_url") ? "invalid" : ""}
                      placeholder="https://brand.com/products/…" onChange={(e) => set("product_url", e.target.value)} onBlur={blur("product_url")} />
             </Field>
-            <Field id="client_brief" label="Client brief" required error={show("client_brief")}
+            {f.mode === "refine" && (
+              <Field id="client_script" label="Client's script" required error={show("client_script")}
+                     hint="Paste it as it is. What works stays word for word; every edit is highlighted and explained.">
+                <textarea id="client_script" style={{ minHeight: 200 }} value={f.client_script} maxLength={30000} className={show("client_script") ? "invalid" : ""}
+                          placeholder={"Scene 1: …\nVO: …\nScene 2: …"} onChange={(e) => set("client_script", e.target.value)} onBlur={blur("client_script")} />
+              </Field>
+            )}
+            <Field id="client_brief" label={f.mode === "refine" ? "Notes for the edit (optional)" : "Client brief"} required={f.mode !== "refine"} error={show("client_brief")}
                    extra={<button type="button" className="toggle-link" style={{ margin: 0 }} disabled={importing} onClick={() => fileRef.current?.click()}>
                      {importing ? <Spinner /> : <Icon.upload />} Import .docx</button>}>
               <textarea id="client_brief" style={{ minHeight: 130 }} value={f.client_brief} maxLength={20000} className={show("client_brief") ? "invalid" : ""}

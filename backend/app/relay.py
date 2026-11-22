@@ -428,7 +428,8 @@ def apply_answer(job: Job, spec: FormatSpec, text: str) -> Job:
         job.script = full_script(res.script, job)
     else:
         rev: RelayRevision = _parse(text, RelayRevision)  # type: ignore[assignment]
-        job.script = full_script(rev.script, job)
+        from .pipeline import _keep_changes
+        job.script = _keep_changes(job.script, full_script(rev.script, job)) if job.script else full_script(rev.script, job)
 
     findings = run_checks(job.script, job.inputs, job.dossier, job.brief, spec)
     passed = not any(f.severity in ("blocker", "major") for f in findings)

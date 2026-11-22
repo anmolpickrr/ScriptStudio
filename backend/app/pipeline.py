@@ -126,11 +126,11 @@ class Pipeline:
         def steps(spec):
             job.revisions.append(Revision(by=by, kind="feedback", detail=feedback))
             self._stage(job, "revise", "started", "editor feedback")
-            job.script = self.llm.structured(
+            job.script = _keep_changes(job.script, self.llm.structured(
                 stage="revise", system=prompts.REVISE_SYSTEM, schema=Script,
                 user=self._context(job, spec) + f"\n\nCURRENT SCRIPT:\n{job.script.model_dump_json()}"
                 f"\n\nEDITOR / CLIENT FEEDBACK TO APPLY (highest priority, unless it asks for an unverified "
-                f"product claim - in that case keep the claim out and say so in production_notes):\n{feedback}")
+                f"product claim - in that case keep the claim out and say so in production_notes):\n{feedback}"))
             self._stage(job, "revise", "done")
             self._qc_loop(job, spec)
         return self._execute(job, steps, "Revise with feedback")
@@ -276,15 +276,27 @@ class Pipeline:
             self._stage(job, "revise", "started", f"round {it}")
             fixes = "\n".join(f"- [{f.severity}] {'scene ' + str(f.scene) + ': ' if f.scene else ''}"
                               f"{f.message} FIX: {f.fix}" for f in report.findings if f.severity != "info")
-            job.script = self.llm.structured(
+            job.script = _keep_changes(job.script, self.llm.structured(
                 stage="revise", system=prompts.REVISE_SYSTEM, schema=Script,
                 user=self._context(job, spec) + f"\n\nCURRENT SCRIPT:\n{job.script.model_dump_json()}"
-                f"\n\nFINDINGS TO FIX:\n{fixes}")
+                f"\n\nFINDINGS TO FIX:\n{fixes}"))
             self._stage(job, "revise", "done")
         # a revision can regress; ship the best version we saw
         _, job.script, final = best
         if job.qc_history[-1] is not final:
             job.qc_history.append(final.model_copy(update={"summary": final.summary + " (best version kept)"}))
+
+
+def _keep_changes(before: Script, after: Script) -> Script:
+    """A revision of a refined client script must not lose the record of what was changed from the original."""
+    if not before.changes:
+        return after
+    seen = {(c.scene, c.part, c.after) for c in after.changes}
+    after.changes = [c for c in before.changes if (c.scene, c.part, c.after) not in seen] + after.changes
+    marks = {sc.number: sc.changed for sc in before.scenes}
+    for sc in after.scenes:
+        sc.changed = list(dict.fromkeys(marks.get(sc.number, []) + sc.changed))
+    return after
 
 
 def brief_field_lines(i) -> list[str]:

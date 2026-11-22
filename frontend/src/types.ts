@@ -36,6 +36,7 @@ export interface JobInputs {
   logo_url: string; brand_guidelines_url: string; asset_links: string[]; ad_type: string; headline_ideas: string[];
   key_usps: string[]; offer: string; cta: string; design_style: string; elements_to_highlight: string[];
   subtitles: boolean; image_source: string;
+  mode: "write" | "refine"; client_script: string;
 }
 
 export interface Flag { severity: Severity; area: string; message: string; suggestion: string }
@@ -61,7 +62,8 @@ export interface Job {
   events: StageEvent[]; flags: Flag[];
   dossier: { url: string; name: string; brand: string; facts: ProductFact[]; packaging_description: string; image_urls: string[] } | null;
   concepts: Concept[]; concept_decision: ConceptDecision | null;
-  script: { title: string; logline: string; scenes: { number: number; label: string; start_sec: number; end_sec: number; visual: string }[] } | null;
+  script: { title: string; logline: string; scenes: { number: number; label: string; start_sec: number; end_sec: number; visual: string; changed?: string[] }[];
+            changes?: ChangeNote[] } | null;
   qc_history: QCReport[]; doc_url: string | null; format_version: string; revisions: Revision[]; error: string;
   relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string; code: string; submitted_via: string } | null;
 }
@@ -85,3 +87,5 @@ export interface FormatSpec {
            require_cta_in_last_scene: boolean; min_critic_score: number; max_revisions: number };
   editorial_notes: string[];
 }
+
+export interface ChangeNote { scene: number; part: string; before: string; after: string; why: string }

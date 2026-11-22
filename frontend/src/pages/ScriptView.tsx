@@ -13,7 +13,7 @@ const FULL = ["product_analysis", "brief", "reconcile", "concepts", "beats", "wr
 const STAGE: Record<string, string> = {
   product_analysis: "Reading the product page", brief: "Understanding the brief", reconcile: "Checking facts against the brief",
   concepts: "Developing concepts", beats: "Building the beat sheet", write: "Writing the script", qc: "Editorial quality review",
-  revise: "Applying revisions", handoff: "Writing in your chat",
+  revise: "Applying revisions", handoff: "Writing in your chat", refine: "Refining the client's script",
 };
 const stageLabel = (st: string, job: Job) => (st === "handoff" ? `Writing in ${ENGINE_NAME[job.inputs.engine]}`
   : st === "qc" && job.inputs.engine !== "auto" ? "Quality checks" : STAGE[st]);
@@ -36,7 +36,7 @@ function ChatSteps({ job, at }: { job: Job; at: number }) {
 }
 const SEV_ORDER = ["blocker", "major", "minor", "info"];
 const BUSY = ["queued", "running"];
-type Tab = "script" | "review" | "flags" | "concepts" | "facts" | "history";
+type Tab = "script" | "changes" | "review" | "flags" | "concepts" | "facts" | "history";
 
 export default function ScriptView() {
   const { id } = useParams();
@@ -118,6 +118,7 @@ export default function ScriptView() {
 
   const allTabs: { key: Tab; label: string; count?: number; show: boolean }[] = [
     { key: "script", label: "Script", show: !wide },
+    { key: "changes", label: "Changes", count: job.script?.changes?.length || undefined, show: !!job.script?.changes?.length },
     { key: "review", label: "Quality", count: openFindings.length || undefined, show: !!qc },
     { key: "flags", label: "Flags", count: flags.length || undefined, show: flags.length > 0 },
     { key: "concepts", label: "Concepts", count: job.concepts.length || undefined, show: job.concepts.length > 0 },
@@ -155,6 +156,19 @@ export default function ScriptView() {
           </div>
         )}
         {!qc.passed && <button className="btn primary sm" onClick={() => setModal("revise")}><Icon.spark /> {job.inputs.engine === "auto" ? "Fix these in a revision" : `Fix these with ${ENGINE_NAME[job.inputs.engine]}`}</button>}
+      </div>
+    );
+    if (t === "changes" && job.script?.changes?.length) return (
+      <div className="panel">
+        <p className="muted small" style={{ margin: 0 }}>Everything not listed here is the client's original, word for word. Edited lines are highlighted in the script.</p>
+        {job.script.changes.map((c, i) => (
+          <div key={i} className="change">
+            <div className="change-where"><span className="badge">{c.scene ? `Scene ${c.scene}` : "Whole script"}</span><b>{c.part}</b></div>
+            {c.before ? <div className="change-before">{c.before}</div> : <div className="change-before added">Added</div>}
+            <div className="change-after">{c.after}</div>
+            <div className="change-why">{c.why}</div>
+          </div>
+        ))}
       </div>
     );
     if (t === "flags") return (
@@ -220,6 +234,7 @@ export default function ScriptView() {
             <div className="meta-chips">
               <StatusBadge status={job.status} />
               <span className="chip-meta">{brand}</span>
+              {job.inputs.mode === "refine" && <span className="chip-meta refined"><Icon.refine /> Refined from client's script</span>}
               <span className="chip-meta">{options?.platforms[job.inputs.platform]?.label || job.inputs.platform} · {job.inputs.duration_sec}s</span>
               <span className="chip-meta">{job.inputs.language}</span>
               <span className="chip-meta"><span className={`dotlogo xs ${job.inputs.engine === "auto" ? "ss" : job.inputs.engine === "chatgpt" ? "gpt" : "claude"}`} />{ENGINE_NAME[job.inputs.engine]}</span>
@@ -394,7 +409,8 @@ function Progress({ job }: { job: Job }) {
     const evs: StageEvent[] = lastRun >= 0 ? job.events.slice(lastRun) : [];
     const label = evs[0]?.detail || "Full generation";
     const plan = job.inputs.engine !== "auto" ? ["product_analysis", "handoff", "qc"]
-      : label.startsWith("Full") ? FULL : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
+      : label.startsWith("Full") ? FULL : label.startsWith("Refine") ? ["product_analysis", "brief", "reconcile", "refine", "qc"]
+        : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
     const done = new Set(evs.filter((e) => e.status === "done").map((e) => e.stage));
     const failed = new Set(evs.filter((e) => e.status === "failed").map((e) => e.stage));
     const lastStarted = [...evs].reverse().find((e) => e.stage !== "run" && e.status === "started");

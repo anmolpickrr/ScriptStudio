@@ -60,7 +60,7 @@ class DemoLLM:
                              supporting_messages=[], audience="As described in the brief",
                              audience_insight="(demo) not analysed", tone="Conversational", cta_intent="Shop now",
                              mandatories=[], exclusions=[], reference_takeaways=[],
-                             assumptions=["Demo mode is on: no AI model was used. Output is a structural placeholder."])
+                             assumptions=["Demo mode is on: no writing model was used. Output is a structural placeholder."])
 
     def _reconcile(self, user):
         return {"flags": []}
@@ -75,7 +75,7 @@ class DemoLLM:
     def _choose_concept(self, user):
         return ConceptDecision(scores=[ConceptScore(index=0, hook=3, brief_fit=3, originality=3, producibility=5,
                                                     product_truth=5, rationale="demo")],
-                               chosen_index=0, director_notes="Demo mode: connect an AI model for real creative work.")
+                               chosen_index=0, director_notes="Demo mode: connect a writing model for real creative work.")
 
     def _beats(self, user):
         m = re.search(r'"duration_sec": (\d+)', user)

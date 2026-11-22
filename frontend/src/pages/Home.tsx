@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
@@ -21,10 +21,13 @@ const BUCKETS: { label: string; tone: string; match: (s: JobStatus) => boolean }
   { label: "Ready", tone: "lime", match: (s) => s === "ready" },
   { label: "Approved", tone: "ok", match: (s) => s === "approved" },
 ];
+const KPI_ICON: Record<string, () => ReactNode> = {
+  all: Icon.film, drafts: Icon.doc, "In progress": Icon.pen, "To review": Icon.search, Ready: Icon.check, Approved: Icon.star,
+};
 const BRIEF_PROMPTS = ["Idea", "Key message", "Offer", "Audience", "Must say"];
 const EXAMPLE_BRIEF = "Idea: Karwa Chauth gifting film. After the fast, the husband surprises his wife with the cushion so she can finally rest.\nKey message: Comfort is the most thoughtful gift.\nOffer: Flat 20% off this week.\nAudience: Married couples 28–45 in metros.";
 const ENGINES: { key: Engine; logo: string; cls: string; short: string; hint: string }[] = [
-  { key: "auto", logo: "S", cls: "ss", short: "ScriptStudio AI", hint: "Free and fully automatic" },
+  { key: "auto", logo: "S", cls: "ss", short: "ScriptStudio", hint: "Free, writes it start to finish" },
   { key: "chatgpt", logo: "G", cls: "gpt", short: "ChatGPT", hint: "Uses your ChatGPT plan" },
   { key: "claude", logo: "C", cls: "claude", short: "Claude", hint: "Uses your Claude plan" },
 ];
@@ -70,14 +73,16 @@ export default function Home() {
 
 
   const urlOk = validUrl(f.product_url);
+  const refine = f.mode === "refine";
   const briefOk = f.client_brief.trim().length >= 20;
-  const ready = urlOk && briefOk;
+  const scriptOk = f.client_script.trim().length >= 40;
+  const ready = urlOk && (refine ? scriptOk : briefOk);
   const full = () => ({ ...loadDraft(), ...pick(f) });
 
   const generate = async (ev: FormEvent) => {
     ev.preventDefault();
     setTouched(true);
-    if (!ready) { toast(!urlOk ? "Paste the product page link, e.g. brand.com/products/…" : "Add a sentence or two of brief.", "error"); return; }
+    if (!ready) { toast(!urlOk ? "Paste the product page link, e.g. brand.com/products/…" : refine ? "Paste the client's script to refine." : "Add a sentence or two of brief.", "error"); return; }
     setBusy(true);
     try {
       const job = await api.post<JobSummary>("/api/jobs", buildJobBody(full()));
@@ -136,11 +141,17 @@ export default function Home() {
             <span className="eyebrow"><span className="pulse-dot" /> {greetingIST(now)}</span>
             <span className="clock-pill" title="India Standard Time">{istStamp(now)}</span>
           </div>
-          <h1 className="display">Write the ad. We'll check <mark className="hl">every fact.</mark></h1>
-          <p className="lede">Paste a product link and the client's brief. You get a ready-to-shoot script sheet, checked against the product page.</p>
+          <h1 className="display">From rough notes to a <em>shoot-ready</em> <mark className="hl">script.</mark></h1>
+          <p className="lede">Share the product link and whatever you have: a brief, loose notes or the client's own draft. You get every scene with cast, camera, dialogue, music and sound working together, and every product claim checked against the page.</p>
       </header>
       <section className="studio-hero">
         <div className="studio-intro">
+          <div className="mode-switch" role="radiogroup" aria-label="What are we doing?">
+            <button type="button" role="radio" aria-checked={!refine} className={!refine ? "on" : ""} onClick={() => set("mode", "write")}>
+              <Icon.pen /> <span className="long">Write a new script</span><span className="short">New script</span></button>
+            <button type="button" role="radio" aria-checked={refine} className={refine ? "on" : ""} onClick={() => set("mode", "refine")}>
+              <Icon.refine /> <span className="long">Refine a client's script</span><span className="short">Refine a script</span></button>
+          </div>
           <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>
             <label className={`composer-url ${f.product_url && !urlOk ? "bad" : ""}`}>
@@ -149,15 +160,27 @@ export default function Home() {
                      value={f.product_url} onChange={(e) => set("product_url", e.target.value)} />
               {urlOk && <span className="composer-host"><Icon.check /> {hostOf(f.product_url)}</span>}
             </label>
+            {refine && (
+              <div className="composer-brief-wrap client-script">
+                <div className="brief-head">
+                  <label htmlFor="composer-script"><Icon.doc /> Client's script <i className="req" aria-hidden="true" /></label>
+                  <span className="brief-tip">Paste it as it is: a table, doc text or loose lines. What works stays word for word.</span>
+                </div>
+                <textarea id="composer-script" className="composer-brief" rows={7} maxLength={30000} value={f.client_script}
+                          placeholder={"Scene 1: Wife wakes up exhausted after the fast…\nVO: This Karwa Chauth, give her the comfort she deserves.\nScene 2: …"}
+                          onChange={(e) => set("client_script", e.target.value)} />
+              </div>
+            )}
             <div className="composer-brief-wrap">
               <div className="brief-head">
-                <label htmlFor="composer-brief"><Icon.pen /> Client brief <i className="req" aria-hidden="true" /></label>
-                <span className="brief-tip">What's the ad about? 2–3 sentences is enough.</span>
+                <label htmlFor="composer-brief"><Icon.pen /> {refine ? "Notes for the edit" : "Client brief"} {refine ? <em className="opt-tag">optional</em> : <i className="req" aria-hidden="true" />}</label>
+                <span className="brief-tip">{refine ? "What should change, and what must stay?" : "What's the ad about? Rough notes are fine."}</span>
               </div>
-              <textarea id="composer-brief" ref={briefRef} className="composer-brief" rows={3} maxLength={20000} value={f.client_brief}
-                        placeholder="Paste the client's brief, or describe the idea in your own words — the story, the key message, the offer and who it's for."
+              <textarea id="composer-brief" ref={briefRef} className="composer-brief" rows={refine ? 2 : 3} maxLength={20000} value={f.client_brief}
+                        placeholder={refine ? "e.g. Keep the story and the ending. Make the hook land in the first two seconds and add the 20% offer."
+                          : "Paste the client's brief, or jot it down your way: the story, the key message, the offer and who it's for."}
                         onChange={(e) => set("client_brief", e.target.value)} />
-              {f.client_brief.trim().length < 200 && (
+              {!refine && f.client_brief.trim().length < 200 && (
                 <div className="brief-prompts" aria-label="Add to the brief">
                   <span className="bp-label">Add</span>
                   {BRIEF_PROMPTS.filter((x) => !new RegExp(`(^|\\n)${x}:`, "i").test(f.client_brief)).map((x) => (
@@ -169,7 +192,9 @@ export default function Home() {
                 <button type="button" className="tool-btn" disabled={importing} onClick={() => fileRef.current?.click()} title="Fill the form from a brief document">
                   {importing ? <Spinner /> : <Icon.upload />} Import .docx</button>
                 <button type="button" className="tool-btn" onClick={saveAsDraft} title="Keep this brief for later"><Icon.save /> Save draft</button>
-                <span className={`brief-count ${briefOk ? "ok" : ""}`}>{briefOk ? <><Icon.check /> Brief added</> : f.client_brief.trim() ? "Add a little more…" : ""}</span>
+                <span className={`brief-count ${(refine ? scriptOk : briefOk) ? "ok" : ""}`}>{refine
+                  ? (scriptOk ? <><Icon.check /> Script added</> : f.client_script.trim() ? "Paste a little more…" : "")
+                  : (briefOk ? <><Icon.check /> Brief added</> : f.client_brief.trim() ? "Add a little more…" : "")}</span>
               </div>
             </div>
             <SpecBar f={f} set={set} />
@@ -183,7 +208,7 @@ export default function Home() {
               </div>
               <div className="composer-actions">
                 <Link className="btn ghost sm more-link" to="/new">More details</Link>
-                <button className="btn primary write-btn" disabled={busy} title={`Write with ${ENGINE_NAME[f.engine]} (${isMac ? "⌘" : "Ctrl"} + Enter)`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : "Write script"}
+                <button className="btn primary write-btn" disabled={busy} title={`Write with ${ENGINE_NAME[f.engine]} (${isMac ? "⌘" : "Ctrl"} + Enter)`}>{busy ? <Spinner /> : <Icon.spark />} {busy ? "Starting…" : refine ? "Refine script" : "Write script"}
                   {!busy && <span className="kbd-hint">{isMac ? "⌘" : "Ctrl"} ↵</span>}</button>
               </div>
             </div>
@@ -210,10 +235,14 @@ export default function Home() {
             <Link to="/scripts" className="link-arrow">All scripts <Icon.arrow /></Link>
           </div>
         </div>
-        <div className="desk-pills" role="tablist" aria-label="Filter">
-          {tabs.filter((t) => t.key === "all" || t.key === filter || t.n > 0).map((t) => (
-            <button key={t.key} role="tab" aria-selected={filter === t.key} className={`desk-pill ${t.tone} ${filter === t.key ? "on" : ""}`} onClick={() => setFilter(t.key)}>
-              {t.key !== "all" && <i className="pill-dot" />}{t.label}<b>{jobs === null && t.key !== "drafts" ? "–" : t.n}</b>
+        <div className="kpis" role="tablist" aria-label="Filter your scripts">
+          {tabs.map((t) => (
+            <button key={t.key} role="tab" aria-selected={filter === t.key}
+                    className={`kpi ${t.tone} ${filter === t.key ? "on" : ""} ${t.key === "Ready" ? "hero" : ""}`}
+                    onClick={() => setFilter(filter === t.key ? "all" : t.key)}>
+              <span className="kpi-top"><span className="kpi-ic">{KPI_ICON[t.key]()}</span><span className="kpi-go"><Icon.arrow /></span></span>
+              <span className="kpi-label">{t.label}</span>
+              <b className="kpi-n">{jobs === null && t.key !== "drafts" ? "–" : t.n}</b>
             </button>
           ))}
         </div>
@@ -249,8 +278,8 @@ export default function Home() {
 
 /** The composer's fields only, so the full form's other answers are never overwritten. */
 function pick(f: JobInputs): Partial<JobInputs> {
-  const { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone } = f;
-  return { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone };
+  const { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style } = f;
+  return { product_url, client_brief, platform, duration_sec, aspect_ratio, engine, theme, hook_type, cta, tone, mode, client_script, design_style };
 }
 
 /** A live miniature of the script sheet you'll get, filled in as you type. */

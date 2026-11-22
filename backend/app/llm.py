@@ -230,7 +230,7 @@ class ChatLLM:
             except (ValidationError, ValueError) as e:
                 repairs += 1
                 if repairs > 2:
-                    raise RuntimeError(f"The AI model returned malformed output for '{stage}' three times.")
+                    raise RuntimeError(f"The writing model returned malformed output for '{stage}' three times.")
                 log.warning("llm stage=%s invalid output, asking for a fix: %s", stage, str(e)[:300])
                 messages = messages + [{"role": "assistant", "content": text[:20000]},
                                        {"role": "user", "content": "That JSON doesn't match the required schema:\n"

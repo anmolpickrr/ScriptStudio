@@ -1,9 +1,10 @@
+import { currentTheme, setTheme, type Theme } from "../theme";
 import { Link } from "react-router-dom";
 import { Component, createContext, ErrorInfo, KeyboardEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Engine, JobStatus } from "../types";
 import logoUrl from "../assets/logo.svg";
 
-export const ENGINE_NAME: Record<Engine, string> = { auto: "ScriptStudio AI", chatgpt: "ChatGPT", claude: "Claude" };
+export const ENGINE_NAME: Record<Engine, string> = { auto: "ScriptStudio", chatgpt: "ChatGPT", claude: "Claude" };
 export const ENGINE_URL: Record<Engine, string> = { auto: "", chatgpt: "https://chatgpt.com/", claude: "https://claude.ai/new" };
 
 // ---------------------------------------------------------------- toasts
@@ -188,7 +189,11 @@ export const Icon = {
   more: () => <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>,
   copy: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>,
   ext: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>,
-  spark: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></svg>,
+  spark: () => <svg viewBox="0 0 24 24" {...P} width="15" height="15"><path d="M12 19 5 12l7-9 7 9z" /><path d="M12 19v2M12 12h.01M12 3v6" /></svg>,
+  sun: () => <svg viewBox="0 0 24 24" {...P} width="17" height="17"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>,
+  moon: () => <svg viewBox="0 0 24 24" {...P} width="17" height="17"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z" /></svg>,
+  plug: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4" /></svg>,
+  refine: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M14 20h6" /></svg>,
   upload: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>,
   search: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
   back: () => <svg viewBox="0 0 24 24" {...P} width="16" height="16"><path d="M15 18l-6-6 6-6" /></svg>,
@@ -262,6 +267,43 @@ export function useMinute(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30_000); return () => clearInterval(t); }, []);
   return now;
+}
+
+/** The Tracker-style clock: India time in lime on a dark pill, with the sun by day and the moon at night. */
+export function ClockPill() {
+  const now = useMinute();
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, weekday: "short",
+    day: "numeric", month: "short", timeZone: IST }).formatToParts(now).map((x) => [x.type, x.value]));
+  const day = useThemeValue() === "light";
+  return (
+    <span className="clock-pill-x" title="India Standard Time">
+      <span className={`sky ${day ? "sun" : "moon"}`} aria-hidden="true" />
+      <b>{parts.hour}:{parts.minute}<small>{(parts.dayPeriod || "").toUpperCase()}</small></b>
+      <span className="clock-date"><span>{parts.weekday}</span><span>{parts.day} {parts.month}</span></span>
+    </span>
+  );
+}
+
+function useThemeValue(): Theme {
+  const [t, setT] = useState<Theme>(() => (document.documentElement.dataset.theme as Theme) || currentTheme());
+  useEffect(() => {
+    const on = () => setT((document.documentElement.dataset.theme as Theme) || "dark");
+    window.addEventListener("ss:theme", on);
+    // follow sunrise and sunset while the page stays open, unless a manual choice is still holding
+    const tick = setInterval(() => { const c = currentTheme(); if (c !== document.documentElement.dataset.theme) { document.documentElement.dataset.theme = c; on(); } }, 60_000);
+    return () => { window.removeEventListener("ss:theme", on); clearInterval(tick); };
+  }, []);
+  return t;
+}
+
+export function ThemeButton() {
+  const t = useThemeValue();
+  return (
+    <button className="round-btn" onClick={() => setTheme(t === "light" ? "dark" : "light")}
+            aria-label={t === "light" ? "Switch to Night theme" : "Switch to Day theme"} title={t === "light" ? "Night theme" : "Day theme"}>
+      {t === "light" ? <Icon.moon /> : <Icon.sun />}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------- platforms: icon + frame shape
