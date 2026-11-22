@@ -43,15 +43,32 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export function Modal({ title, children, onClose, actions, wide }: {
   title: string; children: ReactNode; onClose: () => void; actions: ReactNode; wide?: boolean;
 }) {
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // keyboard users land inside the dialog, Tab stays inside it, and focus returns where it was on close
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    const focusables = () => Array.from(box.current?.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])") || []);
+    (box.current?.querySelector<HTMLElement>("[autofocus]") || focusables()[0])?.focus();
+    const trap = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const f = focusables(); if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", trap);
+    return () => { window.removeEventListener("keydown", trap); before?.focus?.(); };
+  }, []);
   // rendered at the top of the page: an animated parent would otherwise trap the overlay inside itself
   return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={box} className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         {children}
         <div className="actions">{actions}</div>
@@ -297,18 +314,18 @@ function useThemeValue(): Theme {
   return t;
 }
 
-/** The time as a clapperboard shows the take: small, mono, India time. */
-export function SlateClock() {
+/** India time, quietly, beside the navigation (the team works to IST). */
+export function IstTime() {
   const now = useMinute();
   const t = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: IST }).format(now).toUpperCase();
   const d = new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: IST }).format(now);
-  return <span className="slate-clock" title="India Standard Time"><b>{t}</b><span>{d} · IST</span></span>;
+  return <span className="ist-time" title="India Standard Time"><b>{t}</b><span>{d}, IST</span></span>;
 }
 
 export function ThemeButton() {
   const t = useThemeValue();
   return (
-    <button className="slate-btn" onClick={() => setTheme(t === "light" ? "dark" : "light")}
+    <button className="circle-btn" onClick={() => setTheme(t === "light" ? "dark" : "light")}
             aria-label={t === "light" ? "Switch to Night theme" : "Switch to Day theme"} title={t === "light" ? "Night theme" : "Day theme"}>
       {t === "light" ? <Icon.moon /> : <Icon.sun />}
     </button>

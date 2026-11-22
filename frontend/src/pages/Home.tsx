@@ -4,7 +4,7 @@ import { api } from "../api";
 import { buildJobBody, EMPTY, importBriefFile, loadDraft, saveDraft, validUrl } from "../brief";
 import { DraftCard, JobCard, useJobDelete } from "../components/Cards";
 import { SpecBar } from "../components/Pickers";
-import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, istStamp, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
+import { ENGINE_NAME, greetingIST, hostOf, Icon, isMac, Skeleton, Spinner, useMinute, useToast } from "../components/ui";
 import { Draft, hasContent, listDrafts, saveNamedDraft } from "../drafts";
 import { useSession } from "../session";
 import type { Engine, JobInputs, JobStatus, JobSummary } from "../types";
@@ -137,24 +137,17 @@ export default function Home() {
   return (
     <div className="studio">
       <header className="studio-head">
-          <div className="hero-meta">
-            <span className="eyebrow"><span className="pulse-dot" /> {greetingIST(now)}</span>
-            <span className="clock-pill" title="India Standard Time">{istStamp(now)}</span>
-          </div>
-          <h1 className="display">From rough notes to a <em>shoot-ready</em> <mark className="hl">script.</mark></h1>
-          <p className="lede">Share the product link and whatever you have: a brief, loose notes or the client's own draft. You get every scene with cast, camera, dialogue, music and sound working together, and every product claim checked against the page.</p>
+          <p className="greeting">{greetingIST(now)}</p>
+          <h1 className="display">Rough notes in. A script your crew can shoot.</h1>
+          <p className="lede">Paste the product link and whatever you have: a brief, loose notes or the client's draft. Every scene comes back with cast, camera, dialogue, music and sound in sync, and every product claim checked against the page.</p>
       </header>
       <section className="studio-hero">
         <div className="studio-intro">
-          <div className="mode-cards" role="radiogroup" aria-label="What are we doing?">
-            <button type="button" role="radio" aria-checked={!refine} className={`mode-card ${!refine ? "on" : ""}`} onClick={() => set("mode", "write")}>
-              <span className="mc-ic"><Icon.pen /></span>
-              <span className="mc-t"><b>Write a new script</b><small>From a brief or rough notes</small></span>
-            </button>
-            <button type="button" role="radio" aria-checked={refine} className={`mode-card alt ${refine ? "on" : ""}`} onClick={() => set("mode", "refine")}>
-              <span className="mc-ic"><Icon.refine /></span>
-              <span className="mc-t"><b>Refine a client's script</b><small>Keep what works, mark every edit</small></span>
-            </button>
+          <div className="mode-pills" role="radiogroup" aria-label="Start from">
+            <button type="button" role="radio" aria-checked={!refine} className={!refine ? "on" : ""} onClick={() => set("mode", "write")}>
+              <Icon.pen /> New script</button>
+            <button type="button" role="radio" aria-checked={refine} className={refine ? "on" : ""} onClick={() => set("mode", "refine")}>
+              <Icon.refine /> Refine a client's script</button>
           </div>
           <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>

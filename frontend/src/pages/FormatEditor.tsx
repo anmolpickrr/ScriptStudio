@@ -46,7 +46,7 @@ export default function FormatEditor() {
           <h1 className="display-sm">House format</h1>
           <p>Every script and document follows this structure. Saving creates a new version; past scripts keep theirs.</p></div>
         {options && options.formats.length > 1 && (
-          <select style={{ width: 220 }} value={id} onChange={(e) => setId(e.target.value)}>
+          <select style={{ width: 220 }} aria-label="Format to edit" value={id} onChange={(e) => setId(e.target.value)}>
             {options.formats.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
         )}
         {canEdit && <button className="btn primary" onClick={save} disabled={saving}>{saving && <Spinner />} Save v{spec.version + 1}</button>}
@@ -67,7 +67,7 @@ export default function FormatEditor() {
           <p className="hint">Order and headings used in every Google Doc.</p>
           {spec.sections.map((s, i) => (
             <div key={s.key} className="row" style={{ marginTop: 8 }}>
-              <input type="text" style={{ flex: 1 }} value={s.label} disabled={!canEdit} maxLength={80}
+              <input type="text" style={{ flex: 1 }} aria-label={`Section heading ${i + 1}`} value={s.label} disabled={!canEdit} maxLength={80}
                      onChange={(e) => setSpec({ ...spec, sections: spec.sections.map((x, j) => j === i ? { ...x, label: e.target.value } : x) })} />
               {canEdit && <>
                 <button className="btn ghost" aria-label="Move up" onClick={() => move(i, -1)}>↑</button>
@@ -80,13 +80,13 @@ export default function FormatEditor() {
             <h2>Quality bar</h2>
             <div className="grid2">
               <div className="field"><span className="label">Minimum critic score (1–5)</span>
-                <input type="number" min={1} max={5} disabled={!canEdit} value={spec.rules.min_critic_score} onChange={(e) => rule("min_critic_score", +e.target.value)} /></div>
+                <input type="number" min={1} max={5} aria-label="Minimum review score" disabled={!canEdit} value={spec.rules.min_critic_score} onChange={(e) => rule("min_critic_score", +e.target.value)} /></div>
               <div className="field"><span className="label">Max automatic revisions</span>
-                <input type="number" min={0} max={5} disabled={!canEdit} value={spec.rules.max_revisions} onChange={(e) => rule("max_revisions", +e.target.value)} /></div>
+                <input type="number" min={0} max={5} aria-label="Maximum automatic revisions" disabled={!canEdit} value={spec.rules.max_revisions} onChange={(e) => rule("max_revisions", +e.target.value)} /></div>
               <div className="field"><span className="label">Speech pace factor</span>
-                <input type="number" step={0.05} min={0.6} max={1.4} disabled={!canEdit} value={spec.rules.max_words_per_sec_factor} onChange={(e) => rule("max_words_per_sec_factor", +e.target.value)} /></div>
+                <input type="number" step={0.05} min={0.6} max={1.4} aria-label="Speech pace factor" disabled={!canEdit} value={spec.rules.max_words_per_sec_factor} onChange={(e) => rule("max_words_per_sec_factor", +e.target.value)} /></div>
               <div className="field"><span className="label">Minimum scene length (s)</span>
-                <input type="number" step={0.5} min={0.5} max={5} disabled={!canEdit} value={spec.rules.min_scene_sec} onChange={(e) => rule("min_scene_sec", +e.target.value)} /></div>
+                <input type="number" step={0.5} min={0.5} max={5} aria-label="Minimum scene length in seconds" disabled={!canEdit} value={spec.rules.min_scene_sec} onChange={(e) => rule("min_scene_sec", +e.target.value)} /></div>
             </div>
             <label className="row small" style={{ marginTop: 10 }}><input type="checkbox" disabled={!canEdit} checked={spec.rules.require_cta_in_last_scene} onChange={(e) => rule("require_cta_in_last_scene", e.target.checked)} /> CTA must be in the final scene</label>
             <label className="row small"><input type="checkbox" disabled={!canEdit} checked={spec.rules.require_sync_note} onChange={(e) => rule("require_sync_note", e.target.checked)} /> Every spoken scene needs a visual/VO sync note</label>

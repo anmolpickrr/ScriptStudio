@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { SessionProvider, useSession } from "./session";
-import { BrandMark, ErrorBoundary, Icon, isMac, Menu, PageSkeleton, SlateClock, ThemeButton } from "./components/ui";
+import { BrandMark, ErrorBoundary, Icon, isMac, Menu, PageSkeleton, IstTime, ThemeButton } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
 import ConnectSetup from "./components/ConnectSetup";
 import SignIn from "./pages/SignIn";
@@ -59,31 +59,28 @@ function Shell() {
   const who = user!.guest ? "Guest workspace" : user!.name || user!.email;
   return (
     <div className="app shell">
-      <header className="slate" aria-label="Main navigation">
-        <div className="slate-brand">
-          <span className="clapper" aria-hidden="true" />
-          <BrandMark small />
-        </div>
-        <nav className="slate-nav">
-          {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}>{n.icon}<span>{n.label}</span></NavLink>)}
+      <header className="topnav">
+        <span className="logo-chip"><BrandMark small /></span>
+        <nav className="icon-nav" aria-label="Main navigation">
+          {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end} title={n.label} aria-label={n.label}>{n.icon}<span aria-hidden="true">{n.label}</span></NavLink>)}
         </nav>
-        <div className="slate-right">
-          <SlateClock />
-          <button className="slate-btn" onClick={() => setPalette(true)} aria-label="Search and jump" title={`Search (${isMac ? "⌘" : "Ctrl"} K)`}><Icon.search /></button>
+        <div className="nav-right">
+          <IstTime />
+          <button className="circle-btn" onClick={() => setPalette(true)} aria-label="Search and jump" title={`Search (${isMac ? "⌘" : "Ctrl"} K)`}><Icon.search /></button>
           <ThemeButton />
           <Menu trigger={(toggle) => (
-            <button className="slate-btn me" onClick={toggle} aria-label="Account" title={who}>
+            <button className="circle-btn avatar" onClick={toggle} aria-label="Account" title={who}>
               {user!.picture ? <img src={user!.picture} alt="" referrerPolicy="no-referrer" /> : <Icon.user />}
             </button>
           )}>
             {(close) => (<>
               <div className="menu-head"><b>{who}</b><small>{user!.admin ? "Admin" : user!.guest ? "Saved in this browser" : user!.email}</small></div>
-              <button onClick={() => { close(); setPalette(true); }}>Search & jump<small>{isMac ? "⌘" : "Ctrl"} K anywhere</small></button>
-              <button onClick={() => { close(); setConnect(true); }}>Connect Claude / ChatGPT<small>Write with your own plan, no copy-paste</small></button>
+              <button onClick={() => { close(); setPalette(true); }}>Search and jump<small>{isMac ? "⌘" : "Ctrl"} K anywhere</small></button>
+              <button onClick={() => { close(); setConnect(true); }}>Connect Claude or ChatGPT<small>Write with your own plan, no copy-paste</small></button>
               {config.auth_mode === "google" && <button onClick={() => { close(); signOut(); }}>Sign out</button>}
             </>)}
           </Menu>
-          <NavLink to="/new" className="slate-new"><Icon.plus /> <span>New script</span></NavLink>
+          <NavLink to="/new" className="btn primary nav-new"><Icon.plus /> <span>New script</span></NavLink>
         </div>
       </header>
 
