@@ -146,11 +146,15 @@ export default function Home() {
       </header>
       <section className="studio-hero">
         <div className="studio-intro">
-          <div className="mode-switch" role="radiogroup" aria-label="What are we doing?">
-            <button type="button" role="radio" aria-checked={!refine} className={!refine ? "on" : ""} onClick={() => set("mode", "write")}>
-              <Icon.pen /> <span className="long">Write a new script</span><span className="short">New script</span></button>
-            <button type="button" role="radio" aria-checked={refine} className={refine ? "on" : ""} onClick={() => set("mode", "refine")}>
-              <Icon.refine /> <span className="long">Refine a client's script</span><span className="short">Refine a script</span></button>
+          <div className="mode-cards" role="radiogroup" aria-label="What are we doing?">
+            <button type="button" role="radio" aria-checked={!refine} className={`mode-card ${!refine ? "on" : ""}`} onClick={() => set("mode", "write")}>
+              <span className="mc-ic"><Icon.pen /></span>
+              <span className="mc-t"><b>Write a new script</b><small>From a brief or rough notes</small></span>
+            </button>
+            <button type="button" role="radio" aria-checked={refine} className={`mode-card alt ${refine ? "on" : ""}`} onClick={() => set("mode", "refine")}>
+              <span className="mc-ic"><Icon.refine /></span>
+              <span className="mc-t"><b>Refine a client's script</b><small>Keep what works, mark every edit</small></span>
+            </button>
           </div>
           <form ref={formRef} className={`composer ${touched && !ready ? "show-errors" : ""}`} onSubmit={generate} noValidate
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}>

@@ -296,10 +296,18 @@ function useThemeValue(): Theme {
   return t;
 }
 
+/** The time as a clapperboard shows the take: small, mono, India time. */
+export function SlateClock() {
+  const now = useMinute();
+  const t = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: IST }).format(now).toUpperCase();
+  const d = new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: IST }).format(now);
+  return <span className="slate-clock" title="India Standard Time"><b>{t}</b><span>{d} · IST</span></span>;
+}
+
 export function ThemeButton() {
   const t = useThemeValue();
   return (
-    <button className="round-btn" onClick={() => setTheme(t === "light" ? "dark" : "light")}
+    <button className="slate-btn" onClick={() => setTheme(t === "light" ? "dark" : "light")}
             aria-label={t === "light" ? "Switch to Night theme" : "Switch to Day theme"} title={t === "light" ? "Night theme" : "Day theme"}>
       {t === "light" ? <Icon.moon /> : <Icon.sun />}
     </button>

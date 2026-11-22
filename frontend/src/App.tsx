@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { SessionProvider, useSession } from "./session";
-import { BrandMark, ClockPill, ErrorBoundary, Icon, isMac, Menu, PageSkeleton, ThemeButton } from "./components/ui";
+import { BrandMark, ErrorBoundary, Icon, isMac, Menu, PageSkeleton, SlateClock, ThemeButton } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
 import ConnectSetup from "./components/ConnectSetup";
 import SignIn from "./pages/SignIn";
@@ -57,44 +57,33 @@ function Shell() {
   }, [nav]);
 
   const who = user!.guest ? "Guest workspace" : user!.name || user!.email;
-  const page = [...NAV, { to: "/new", label: "New script" }].find((n) => (n.to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(n.to)));
   return (
     <div className="app shell">
-      <aside className="side" aria-label="Main navigation">
-        <BrandMark small />
-        <div className="side-sec">Workspace</div>
-        <nav className="side-nav">
-          {NAV.slice(0, 3).map((n) => <NavLink key={n.to} to={n.to} end={n.end}>{n.icon}<span>{n.label}</span></NavLink>)}
+      <header className="slate" aria-label="Main navigation">
+        <div className="slate-brand">
+          <span className="clapper" aria-hidden="true" />
+          <BrandMark small />
+        </div>
+        <nav className="slate-nav">
+          {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}>{n.icon}<span>{n.label}</span></NavLink>)}
         </nav>
-        <div className="side-sec">House</div>
-        <nav className="side-nav">
-          {NAV.slice(3).map((n) => <NavLink key={n.to} to={n.to}>{n.icon}<span>{n.label}</span></NavLink>)}
-        </nav>
-        <div className="side-foot">
-          <button className="side-connect" onClick={() => setConnect(true)}><Icon.plug /> Connect Claude / ChatGPT</button>
+        <div className="slate-right">
+          <SlateClock />
+          <button className="slate-btn" onClick={() => setPalette(true)} aria-label="Search and jump" title={`Search (${isMac ? "⌘" : "Ctrl"} K)`}><Icon.search /></button>
+          <ThemeButton />
           <Menu trigger={(toggle) => (
-            <button className="side-me" onClick={toggle} title={who}>
-              <span className="av">{user!.picture ? <img src={user!.picture} alt="" referrerPolicy="no-referrer" /> : <Icon.user />}</span>
-              <span className="grow"><b>{who}</b><small>{user!.admin ? "Admin" : user!.guest ? "Saved in this browser" : user!.email}</small></span>
+            <button className="slate-btn me" onClick={toggle} aria-label="Account" title={who}>
+              {user!.picture ? <img src={user!.picture} alt="" referrerPolicy="no-referrer" /> : <Icon.user />}
             </button>
           )}>
             {(close) => (<>
+              <div className="menu-head"><b>{who}</b><small>{user!.admin ? "Admin" : user!.guest ? "Saved in this browser" : user!.email}</small></div>
               <button onClick={() => { close(); setPalette(true); }}>Search & jump<small>{isMac ? "⌘" : "Ctrl"} K anywhere</small></button>
-              <button onClick={() => { close(); nav("/new"); }}>New script<small>Press N anywhere</small></button>
+              <button onClick={() => { close(); setConnect(true); }}>Connect Claude / ChatGPT<small>Write with your own plan, no copy-paste</small></button>
               {config.auth_mode === "google" && <button onClick={() => { close(); signOut(); }}>Sign out</button>}
             </>)}
           </Menu>
-        </div>
-      </aside>
-
-      <header className="topbar">
-        <span className="mobile-brand"><BrandMark small /></span>
-        <span className="crumb"><i className="dot" /> ScriptStudio <span>{page?.label || "Script"}</span></span>
-        <div className="top-right">
-          <ClockPill />
-          <button className="round-btn" onClick={() => setPalette(true)} aria-label="Search and jump" title={`Search (${isMac ? "⌘" : "Ctrl"} K)`}><Icon.search /></button>
-          <ThemeButton />
-          <NavLink to="/new" className="btn primary top-new"><Icon.plus /> <span>New script</span></NavLink>
+          <NavLink to="/new" className="slate-new"><Icon.plus /> <span>New script</span></NavLink>
         </div>
       </header>
 
