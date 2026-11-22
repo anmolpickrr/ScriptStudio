@@ -96,6 +96,12 @@ def list_jobs(user: User = Depends(current_user)):
 @router.get("/{job_id}")
 def get_job(job_id: str, user: User = Depends(current_user)):
     job = _get(job_id, user)
+    # a job left queued (e.g. by a restart during a deploy) is picked up again instead of waiting forever
+    if job.status == JobStatus.queued and not settings.tasks_queue:
+        from ..worker import in_flight
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(job.updated_at)).total_seconds()
+        if age > 20 and not in_flight(job.id):
+            dispatch(TaskBody(job_id=job.id, action="generate", by=job.owner))
     data = job.model_dump(mode="json")
     if data.get("dossier"):
         data["dossier"].pop("source_excerpt", None)  # large and only needed server-side

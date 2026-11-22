@@ -25,7 +25,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "auth_mode", "none")
     monkeypatch.setattr(settings, "daily_job_limit", 15)
     monkeypatch.setattr(jobs_routes, "check_url", lambda u: u)
-    monkeypatch.setattr(product, "fetch", lambda url, client=None: product.parse_html(url, PRODUCT_HTML))
+    monkeypatch.setattr(product, "fetch", lambda url, client=None, **kw: product.parse_html(url, PRODUCT_HTML))
 
     def run_now(task):  # execute synchronously with the fake model instead of a background worker
         monkeypatch.setattr(worker, "get_llm", lambda: FakeLLM(handlers()))

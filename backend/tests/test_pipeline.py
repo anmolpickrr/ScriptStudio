@@ -48,7 +48,7 @@ def test_stuck_script_goes_to_needs_review_and_keeps_best(tmp_path):
     finding = CriticFinding(check="hook", severity="major", scene=1, message="Hook is generic", fix="Be specific")
     job, llm, _ = run(tmp_path, critic_fn=lambda **_: critic(3, [finding]))
     assert job.status == JobStatus.needs_review
-    assert llm.calls.count("critic") == DEFAULT_FORMAT.rules.max_revisions + 1
+    assert llm.calls.count("critic") == min(DEFAULT_FORMAT.rules.max_revisions, 1) + 1
 
 
 def test_render_follows_format_order_and_shows_flags(tmp_path):

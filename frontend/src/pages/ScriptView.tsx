@@ -451,7 +451,7 @@ function Progress({ job }: { job: Job }) {
           })}
         </ol>
       </div>
-      <p className="hint">{job.inputs.engine === "auto" ? "Usually 2 to 5 minutes." : `Reading the product page takes a few seconds, then ${ENGINE_NAME[job.inputs.engine]} writes the script.`} You can leave this page. The script keeps going and appears in <Link to="/scripts">Scripts</Link>.</p>
+      <p className="hint">{job.inputs.engine === "auto" ? "Usually 1 to 3 minutes." : `Reading the product page takes a few seconds, then ${ENGINE_NAME[job.inputs.engine]} writes the script.`} You can leave this page. The script keeps going and appears in <Link to="/scripts">Scripts</Link>.</p>
     </div>
   );
 }

@@ -31,6 +31,9 @@ log = logging.getLogger(__name__)
 SEV_WEIGHT = {"blocker": 100, "major": 10, "minor": 1, "info": 0}
 
 
+MAX_ROUNDS = 1  # keeps a full run inside about three minutes
+
+
 class _LLMFlag(BaseModel):
     severity: Literal["blocker", "major", "minor"]
     area: str
@@ -90,8 +93,11 @@ class Pipeline:
             # a retry starts clean so flags and history don't pile up
             job.flags, job.dossier, job.brief, job.concepts = [], None, None, []
             job.concept_decision, job.beats, job.script, job.qc_history = None, None, None, []
-            self._ingest(job)
-            self._brief(job, spec)
+            # reading the product page and reading the brief don't depend on each other: do both at once
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(2) as ex:
+                a, b = ex.submit(self._ingest, job), ex.submit(self._brief, job, spec)
+                a.result(); b.result()
             self._reconcile(job, spec)
             if job.inputs.mode == "refine":
                 self._refine(job, spec)
@@ -263,7 +269,9 @@ class Pipeline:
 
     def _qc_loop(self, job: Job, spec: FormatSpec):
         best: tuple[float, Script, QCReport] | None = None
-        for it in range(1, spec.rules.max_revisions + 2):
+        # one revision round at most: a second rarely changes much and doubles the wait
+        rounds = min(spec.rules.max_revisions, MAX_ROUNDS)
+        for it in range(1, rounds + 2):
             self._stage(job, "qc", "started", f"round {it}")
             report = self.review(job, spec, it)
             job.qc_history.append(report)
@@ -271,7 +279,7 @@ class Pipeline:
             if best is None or badness < best[0]:
                 best = (badness, job.script, report)
             self._stage(job, "qc", "done", f"round {it}: {'pass' if report.passed else 'revise'}")
-            if report.passed or it > spec.rules.max_revisions:
+            if report.passed or it > rounds:
                 break
             self._stage(job, "revise", "started", f"round {it}")
             fixes = "\n".join(f"- [{f.severity}] {'scene ' + str(f.scene) + ': ' if f.scene else ''}"

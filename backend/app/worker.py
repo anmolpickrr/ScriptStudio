@@ -24,6 +24,8 @@ from .store import get_store
 log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(minutes=35)
 _pool: ThreadPoolExecutor | None = None
+_quick: ThreadPoolExecutor | None = None   # chat jobs only read a page: they never wait behind full writing runs
+_inflight: set[str] = set()
 
 
 def _executor() -> ThreadPoolExecutor:
@@ -55,6 +57,12 @@ def _safe_execute(task: TaskBody) -> None:
         execute(task)
     except Exception:  # never let a worker thread die silently
         log.exception("task %s/%s crashed", task.job_id, task.action)
+    finally:
+        _inflight.discard(task.job_id)
+
+
+def in_flight(job_id: str) -> bool:
+    return job_id in _inflight
 
 
 def execute(task: TaskBody) -> None:
@@ -98,7 +106,16 @@ def dispatch(task: TaskBody) -> None:
             "dispatch_deadline": {"seconds": 1800},
         })
     else:
-        _executor().submit(_safe_execute, task)
+        global _quick
+        if task.job_id in _inflight:
+            return
+        _inflight.add(task.job_id)
+        job = get_store().get_job(task.job_id)
+        if job and job.inputs.engine != "auto":
+            _quick = _quick or ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat")
+            _quick.submit(_safe_execute, task)
+        else:
+            _executor().submit(_safe_execute, task)
 
 
 def recover_interrupted_jobs() -> int:

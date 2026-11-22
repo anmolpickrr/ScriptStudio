@@ -143,6 +143,7 @@ class RelayResult(BaseModel):
     concepts: list[LeanConcept]
     chosen_index: int
     script: LeanScript
+    page_text: str = ""   # only when ScriptStudio couldn't read the page: the chat's verbatim copy of it
 
 
 class RelayRevision(BaseModel):
@@ -309,10 +310,12 @@ CLIENT BRIEF (source of truth for objective, message, tone and outcome; it may b
 INPUTS
 {_inputs_block(job)}
 
-PRODUCT SOURCE (the only source of product truth; quotes must be copied from here):
+{f"""PRODUCT SOURCE (the only source of product truth; quotes must be copied from here):
 <<<
 {source_text[:MAX_SOURCE]}
->>>
+>>>""" if source_text.strip() else f"""PRODUCT SOURCE: ScriptStudio couldn't load {i.product_url} from its server (the site limits automated
+visitors). Open that page yourself, copy its product name, description, features, price and details VERBATIM into
+`page_text` (plain text, up to about 6,000 characters), and quote facts only from that text."""}
 
 OUTPUT: reply with ONE JSON object only, inside a single ```json code block, with no other text before or after. It \
 must match this JSON schema exactly (every property is required; use "" or [] when empty):
@@ -354,8 +357,13 @@ OUTPUT: reply with ONE JSON object only, inside a single ```json code block, mat
 
 def prepare(job: Job, spec: FormatSpec, page: Optional[PageSource] = None) -> Job:
     """Runs in the worker: fetch the page, then wait for the user's chat answer."""
-    _, text, flags = gather_source(job.inputs.product_url, page, job.inputs.product_copy,
-                                          job.inputs.product_image_urls)
+    # chats are waiting on this, so the page gets one quick try; if the site blocks us the chat reads it instead
+    from .ingest.product import SourceUnavailable
+    try:
+        _, text, flags = gather_source(job.inputs.product_url, page, job.inputs.product_copy,
+                                       job.inputs.product_image_urls, quick=True)
+    except SourceUnavailable:
+        text, flags = "", []
     job.flags = flags
     job.dossier, job.brief, job.concepts, job.concept_decision, job.script, job.qc_history = None, None, [], None, None, []
     job.relay = RelayState(kind="full", prompt=build_full_prompt(job, spec, text), source_text=text,
@@ -412,7 +420,15 @@ def apply_answer(job: Job, spec: FormatSpec, text: str) -> Job:
                                  for f in res.facts],
                           packaging_description="", unknowns=res.unknowns)
         page = PageSource(url=job.inputs.product_url)
-        job.dossier, flags = build_dossier(job.inputs.product_url, page, job.relay.source_text, ext,
+        source = job.relay.source_text
+        if not source.strip() and res.page_text.strip():  # the chat read the page for us
+            source = res.page_text[:MAX_SOURCE]
+            job.relay.source_text = source
+            job.flags.append(Flag(severity="minor", area="product", message=(
+                f"Product facts were checked against {ENGINE_LABEL.get(job.inputs.engine, 'the chat')}'s copy of the "
+                "product page, because the site blocked ScriptStudio's server."),
+                suggestion="Glance at the Facts tab against the live page before sending to the client."))
+        job.dossier, flags = build_dossier(job.inputs.product_url, page, source, ext,
                                            job.inputs.product_copy, ids=ids)
         job.flags = [f for f in job.flags if f.area != "product" or f.severity == "major"] + flags
         job.brief = _full_brief(res.brief, job)

@@ -55,19 +55,19 @@ _CACHE: dict[str, tuple[float, PageSource]] = {}
 CACHE_SEC = 15 * 60   # a rewrite or a second script for the same product doesn't ask the store again
 
 
-def fetch(url: str, client: Optional[httpx.Client] = None) -> PageSource:
+def fetch(url: str, client: Optional[httpx.Client] = None, quick: bool = False) -> PageSource:
     """Read a product page. A mistyped host gets one retry with/without 'www.'; busy sites get a patient wait."""
     url = normalise_url(url)
     hit = _CACHE.get(url)
     if hit and time.time() - hit[0] < CACHE_SEC and client is None:
         return hit[1].model_copy(deep=True)
     try:
-        page = _fetch_page(url, client)
+        page = _fetch_page(url, client, quick)
     except UnreachableURL:
         p = urlparse(url)
         host = p.hostname or ""
         other = host[4:] if host.startswith("www.") else "www." + host
-        page = _fetch_page(p._replace(netloc=p.netloc.replace(host, other, 1)).geturl(), client)
+        page = _fetch_page(p._replace(netloc=p.netloc.replace(host, other, 1)).geturl(), client, quick)
     if client is None:
         if len(_CACHE) > 200:
             _CACHE.clear()
@@ -75,17 +75,17 @@ def fetch(url: str, client: Optional[httpx.Client] = None) -> PageSource:
     return page
 
 
-def _fetch_page(url: str, client: Optional[httpx.Client]) -> PageSource:
-    resp = safe_get(url, client, headers=HTML_HEADERS)
+def _fetch_page(url: str, client: Optional[httpx.Client], quick: bool = False) -> PageSource:
+    resp = safe_get(url, client, headers=HTML_HEADERS, timeout=8 if quick else None)
     # busy stores answer "too many requests" or "unavailable" for a moment; wait briefly and ask again
     # (about half a minute in all, honouring the site's own Retry-After when it gives one)
     # some stores rate-limit a cloud server for a minute or two, so the last waits are long (about 3 minutes in all)
-    for wait in (3, 8, 15, 45, 90):
+    for wait in ((3,) if quick else (3, 8, 15, 45, 90)):
         if resp.status_code not in (429, 503):
             break
         ra = resp.headers.get("retry-after", "")
         time.sleep(min(float(ra), 90) if ra.isdigit() else wait)
-        resp = safe_get(url, client, headers=HTML_HEADERS)
+        resp = safe_get(url, client, headers=HTML_HEADERS, timeout=8 if quick else None)
     host = urlparse(resp.url).hostname
     if resp.status_code in REFUSED or (resp.status_code < 400 and _bot_check(resp.text)):
         raise SiteRefused(f"{host} only lets people in a browser see this page (it blocks automated visitors)")
@@ -338,11 +338,11 @@ def _why(e: Exception) -> str:
 
 
 def gather_source(url: str, page: Optional[PageSource] = None, product_copy: str = "",
-                  extra_images: Optional[list[str]] = None) -> tuple[PageSource, str, list[Flag]]:
+                  extra_images: Optional[list[str]] = None, quick: bool = False) -> tuple[PageSource, str, list[Flag]]:
     """Fetch the product page (or fall back to pasted copy) and build the text facts must be quoted from."""
     flags: list[Flag] = []
     try:
-        page = page or fetch(url)
+        page = page or fetch(url, quick=quick)
     except UnsafeURL as e:
         raise ValueError(str(e))
     except Exception as e:

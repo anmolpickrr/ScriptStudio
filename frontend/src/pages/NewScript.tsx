@@ -10,7 +10,7 @@ import { SheetPreview } from "./Home";
 import type { Engine, JobInputs, JobSummary, Reference } from "../types";
 
 const ENGINES: { key: Engine; logo: string; cls: string; hint: string }[] = [
-  { key: "auto", logo: "S", cls: "ss", hint: "Free and fully automatic — concepts, script and an editorial review in 3–6 minutes." },
+  { key: "auto", logo: "S", cls: "ss", hint: "Free and fully automatic — concepts, script and an editorial review in 1 to 3 minutes." },
   { key: "chatgpt", logo: "G", cls: "gpt", hint: "Uses your ChatGPT plan: copy one prompt into ChatGPT, paste the reply back." },
   { key: "claude", logo: "C", cls: "claude", hint: "Uses your Claude plan: copy one prompt into Claude, paste the reply back." },
 ];
@@ -306,7 +306,7 @@ export default function NewScript() {
             </ul>
             <button className="btn primary lg block" disabled={busy}>{busy ? <Spinner /> : <Icon.spark />}{busy ? "Starting…" : cta}</button>
             <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={saveAsDraft}><Icon.save /> {draftId ? "Save draft" : "Save as draft"}</button>
-            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 3–6 minutes, you can leave the page.` : `Next: ${ENGINE_NAME[f.engine]} writes it. You send it with one click.`}</p>
+            <p className="hint" style={{ textAlign: "center", marginTop: 10 }}>{f.engine === "auto" ? `${ENGINE_NAME[f.engine]} · takes 1 to 3 minutes, you can leave the page.` : `Next: ${ENGINE_NAME[f.engine]} writes it. You send it with one click.`}</p>
           </div>
         </aside>
       </div>

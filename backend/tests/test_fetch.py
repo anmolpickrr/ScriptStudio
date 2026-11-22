@@ -51,7 +51,7 @@ def test_bot_check_is_reported_honestly_not_bypassed():
 
 
 def test_unreadable_page_points_to_pasting_the_description(monkeypatch):
-    def refuse(url, client=None):
+    def refuse(url, client=None, **kw):
         raise SiteRefused("shop.example.com only lets people in a browser see this page")
     monkeypatch.setattr(product, "fetch", refuse)
     with pytest.raises(product.SourceUnavailable, match="paste it into 'Page won't load\\?'"):
