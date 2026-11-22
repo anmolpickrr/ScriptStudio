@@ -8,9 +8,9 @@ for Night); the v9 layer at the end of that file holds the components below.
 
 | Token | Day | Night | Use |
 |---|---|---|---|
-| `--cobalt` | `#2f5bff` | `#2f5bff` | Primary: actions, the active nav item, the composer, the "Ready" tile |
-| `--ink` | `#0b0d12` | `#0b0d12` | Anchors: nav pill, logo chip, Write button, selected toggles (Day) |
-| `--mint` / `--lime-text` | `#22c38e` / `#0b7a55` | `#34d399` / `#5fe6b2` | Ready, approved, success |
+| `--cobalt` (violet) | `#6953da` | `#9c8be7` | Primary: actions, the active nav item, the composer, the "Ready" tile |
+| `--ink` | `#131315` | `#131315` | Anchors: nav pill, logo chip, Write button, selected toggles (Day) |
+| `--mint` (lime) | `#d5f379` | `#d5f379` | Write button, active nav, Ready tile, success |
 | `--sky` | `#dce6ff` | cobalt 14% | Drafts tile |
 | `--lilac` | `#e6e0ff` | violet 16% | In-progress tile |
 | `--apricot` | `#ffdcb5` | orange 14% | Needs-review tile |
