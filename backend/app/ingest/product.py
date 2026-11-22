@@ -79,11 +79,12 @@ def _fetch_page(url: str, client: Optional[httpx.Client]) -> PageSource:
     resp = safe_get(url, client, headers=HTML_HEADERS)
     # busy stores answer "too many requests" or "unavailable" for a moment; wait briefly and ask again
     # (about half a minute in all, honouring the site's own Retry-After when it gives one)
-    for wait in (3, 8, 15):
+    # some stores rate-limit a cloud server for a minute or two, so the last waits are long (about 3 minutes in all)
+    for wait in (3, 8, 15, 45, 90):
         if resp.status_code not in (429, 503):
             break
         ra = resp.headers.get("retry-after", "")
-        time.sleep(min(float(ra), 20) if ra.isdigit() else wait)
+        time.sleep(min(float(ra), 90) if ra.isdigit() else wait)
         resp = safe_get(url, client, headers=HTML_HEADERS)
     host = urlparse(resp.url).hostname
     if resp.status_code in REFUSED or (resp.status_code < 400 and _bot_check(resp.text)):
@@ -91,7 +92,7 @@ def _fetch_page(url: str, client: Optional[httpx.Client]) -> PageSource:
     if resp.status_code in (404, 410):
         raise RuntimeError(f"{host} says this page doesn't exist ({resp.status_code}), so the link may be old or mistyped")
     if resp.status_code in (429, 503):
-        raise RuntimeError(f"{host} is busy right now ({resp.status_code}); try again in a few minutes")
+        raise RuntimeError(f"{host} kept refusing our requests ({resp.status_code}, too many requests) for about 3 minutes")
     resp.raise_for_status()
     src = parse_html(resp.url, resp.text)
     for extra in (_try_shopify(client, resp.url), _try_woocommerce(client, resp.url)):
