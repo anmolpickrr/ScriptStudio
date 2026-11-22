@@ -23,7 +23,7 @@ from .qc.checks import run_checks
 from .schemas import (CTA, ChangeNote, Character, Concept, ConceptDecision, ConceptScore, CreativeBrief, DialogueLine, FactCategory, Flag,
                       Job, JobStatus, QCReport, RelayState, Revision, Scene, Script, Shot, StageEvent)
 
-ENGINE_LABEL = {"chatgpt": "ChatGPT", "claude": "Claude"}
+ENGINE_LABEL = {"chatgpt": "ChatGPT", "claude": "Claude", "auto": "ScriptStudio"}
 MAX_SOURCE = 14000
 
 

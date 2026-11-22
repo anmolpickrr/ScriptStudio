@@ -124,6 +124,8 @@ class Settings:
     static_dir: str = field(default_factory=lambda: _env("STATIC_DIR", "../frontend/dist"))
 
     fetch_timeout_sec: float = 20.0
+    # one writing call per script (about 1-3 minutes) instead of the multi-stage pipeline
+    fast_pipeline: bool = field(default_factory=lambda: _env("FAST_PIPELINE", "1") not in ("0", "false", "no"))
     fetch_max_bytes: int = 5_000_000
 
     def __post_init__(self):

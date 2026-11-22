@@ -124,3 +124,14 @@ def test_refine_mode_keeps_the_client_script_and_highlights_edits(tmp_path):
     html = render_script_html(job, DEFAULT_FORMAT)
     assert "EDITED" in html and "What changed from the client" in html and "Our coffee is the best." in html
     assert render_script_docx(job, DEFAULT_FORMAT)[:2] == b"PK"
+
+
+def test_fast_route_writes_in_one_pass(tmp_path):
+    from app import relay
+    import json as _json
+    from tests.test_relay import answer  # a valid chat answer
+    store = LocalStore(tmp_path)
+    llm = FakeLLM({"write": lambda **_: relay.RelayResult.model_validate_json(relay._extract_json(answer()))})
+    job = Pipeline(llm, store, page_override=parse_html(INPUTS.product_url, PRODUCT_HTML), fast=True).run(Job(id="f1", inputs=INPUTS))
+    assert job.status in (JobStatus.ready, JobStatus.needs_review), job.error
+    assert llm.calls.count("write") == 1 and job.script and job.relay is None

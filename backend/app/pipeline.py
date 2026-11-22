@@ -24,7 +24,7 @@ from .ingest.references import describe_references
 from .llm import LLM
 from .qc.checks import run_checks
 from .schemas import (BeatSheet, ConceptDecision, ConceptSet, CreativeBrief, CriticReport, Flag, Job,
-                      JobStatus, QCFinding, QCReport, Revision, Script, StageEvent, utcnow)
+                      JobStatus, QCFinding, QCReport, RelayState, Revision, Script, StageEvent, utcnow)
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -50,8 +50,8 @@ class _FlagList(BaseModel):
 
 
 class Pipeline:
-    def __init__(self, llm: LLM, store: Store, page_override: Optional[PageSource] = None):
-        self.llm, self.store, self.page_override = llm, store, page_override
+    def __init__(self, llm: LLM, store: Store, page_override: Optional[PageSource] = None, fast: bool = False):
+        self.llm, self.store, self.page_override, self.fast = llm, store, page_override, fast
 
     # ---------------------------------------------------------------- helpers
     def _stage(self, job: Job, name: str, status: str, detail: str = ""):
@@ -96,6 +96,10 @@ class Pipeline:
     # ---------------------------------------------------------------- run
     def run(self, job: Job) -> Job:
         """Full pipeline from the product link."""
+        if self.fast:
+            return self._execute(job, lambda spec: self._one_pass(job, spec),
+                                 "Refine client script" if job.inputs.mode == "refine" else "Full generation")
+
         def steps(spec):
             # a retry starts clean so flags and history don't pile up
             job.flags, job.dossier, job.brief, job.concepts = [], None, None, []
@@ -257,6 +261,38 @@ class Pipeline:
                 f"\nEXCLUSIONS: {json.dumps(job.inputs.exclusions + job.brief.exclusions)}")
         job.script = self.llm.structured(stage="refine", system=prompts.REFINE_SYSTEM, user=user, schema=Script)
         self._stage(job, "refine", "done", f"{len(job.script.changes)} change(s)")
+
+    def _one_pass(self, job: Job, spec: FormatSpec):
+        """The quick route (about 1-3 minutes): the page is read once, then one writing call does facts, brief,
+        concepts and the full script with the same rules Claude and ChatGPT follow. Facts are verified and the
+        automatic checks run; a second call fixes serious findings only."""
+        from . import relay
+        from .ingest.product import gather_source
+        job.flags, job.dossier, job.brief, job.concepts = [], None, None, []
+        job.concept_decision, job.beats, job.script, job.qc_history = None, None, None, []
+        self._stage(job, "product_analysis", "started")
+        _, text, flags = gather_source(job.inputs.product_url, self.page_override, job.inputs.product_copy,
+                                       job.inputs.product_image_urls, more_urls=job.inputs.extra_product_urls)
+        self._stage(job, "product_analysis", "done", f"{len(text):,} characters read")
+        job.flags = flags
+        job.relay = RelayState(kind="full", prompt="", source_text=text, token="")
+        self._stage(job, "write", "started")
+        res = self.llm.structured(stage="write", system="You are ScriptStudio's writing team. Follow the instructions exactly "
+                                  "and return only the JSON object.", user=relay.build_full_prompt(job, spec, text),
+                                  schema=relay.RelayResult)
+        job.status = JobStatus.awaiting_input
+        relay.apply_answer(job, spec, res.model_dump_json())
+        self._stage(job, "write", "done", f"{len(job.script.scenes)} scenes")
+        serious = [f for f in job.qc_history[-1].findings if f.severity in ("blocker", "major")]
+        if serious:
+            self._stage(job, "revise", "started", f"{len(serious)} finding(s)")
+            rev = self.llm.structured(stage="revise", system="You are ScriptStudio's senior scriptwriter. Return only the JSON.",
+                                      user=relay.build_revision_prompt(job, spec, "Fix the serious quality findings."),
+                                      schema=relay.RelayRevision)
+            job.relay.kind, job.status = "revise", JobStatus.awaiting_input
+            relay.apply_answer(job, spec, rev.model_dump_json())
+            self._stage(job, "revise", "done")
+        job.relay = None
 
     # ---------------------------------------------------------------- QC
     def review(self, job: Job, spec: FormatSpec, iteration: int) -> QCReport:

@@ -24,6 +24,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(store_mod, "_store", store_mod.LocalStore(tmp_path))
     monkeypatch.setattr(settings, "auth_mode", "none")
     monkeypatch.setattr(settings, "daily_job_limit", 15)
+    monkeypatch.setattr(settings, "fast_pipeline", False)
     monkeypatch.setattr(jobs_routes, "check_url", lambda u: u)
     monkeypatch.setattr(product, "fetch", lambda url, client=None, **kw: product.parse_html(url, PRODUCT_HTML))
 

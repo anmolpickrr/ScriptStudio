@@ -14,7 +14,7 @@ const FULL = ["product_analysis", "brief", "reconcile", "concepts", "beats", "wr
 const STAGE: Record<string, string> = {
   product_analysis: "Reading the product page", brief: "Understanding the brief", reconcile: "Checking facts against the brief",
   concepts: "Developing concepts", beats: "Building the beat sheet", write: "Writing the script", qc: "Editorial quality review",
-  revise: "Applying revisions", handoff: "Writing in your chat", refine: "Refining the client's script",
+  revise: "Final polish", handoff: "Writing in your chat", refine: "Refining the client's script",
 };
 const stageLabel = (st: string, job: Job) => (st === "handoff" ? `Writing in ${ENGINE_NAME[job.inputs.engine]}`
   : st === "qc" && job.inputs.engine !== "auto" ? "Quality checks" : STAGE[st]);
@@ -412,7 +412,8 @@ function Progress({ job }: { job: Job }) {
     const evs: StageEvent[] = lastRun >= 0 ? job.events.slice(lastRun) : [];
     const label = evs[0]?.detail || "Full generation";
     const plan = job.inputs.engine !== "auto" ? ["product_analysis", "handoff", "qc"]
-      : label.startsWith("Full") ? FULL : label.startsWith("Refine") ? ["product_analysis", "brief", "reconcile", "refine", "qc"]
+      : evs.some((e) => e.stage === "concepts") ? FULL : label.startsWith("Full") || label.startsWith("Refine") ? ["product_analysis", "write", "revise"]
+        : label.startsWith("Refine") ? ["product_analysis", "brief", "reconcile", "refine", "qc"]
         : label.startsWith("Revise") ? ["revise", "qc"] : ["beats", "write", "qc"];
     const done = new Set(evs.filter((e) => e.status === "done").map((e) => e.stage));
     const failed = new Set(evs.filter((e) => e.status === "failed").map((e) => e.stage));
@@ -604,7 +605,7 @@ function RelayPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
                 <span>Copy the request, pick <b>ScriptStudio</b> in the message box, paste and press Enter. The plugin writes and sends the script back here by itself.</span>
               </div>
               <button className="btn sm secondary" onClick={async () => {
-                try { await navigator.clipboard.writeText(`write script ${relay.code}`); setPluginSent(true); toast("Request copied. Paste it into ChatGPT with ScriptStudio selected.", "ok"); }
+                try { await navigator.clipboard.writeText(`Use the ScriptStudio app (get_script_job, then submit_script), not the browser: write script ${relay.code}`); setPluginSent(true); toast("Request copied. Paste it into ChatGPT with ScriptStudio selected.", "ok"); }
                 catch { toast(`Copy this into ChatGPT: write script ${relay.code}`); }
               }}><Icon.copy /> Copy request</button>
             </div>

@@ -56,6 +56,17 @@ class JobInputs(BaseModel):
                 out.append(u if "://" in u else "https://" + u.lstrip("/"))
         return list(dict.fromkeys(out))
 
+    @model_validator(mode="before")
+    @classmethod
+    def _split_pasted_links(cls, data):
+        """Several links pasted into the main box become extra products."""
+        if isinstance(data, dict) and isinstance(data.get("product_url"), str):
+            parts = [p for p in data["product_url"].replace(",", " ").split() if "." in p]
+            if len(parts) > 1:
+                data = {**data, "product_url": parts[0],
+                        "extra_product_urls": [*parts[1:], *(data.get("extra_product_urls") or [])][:5]}
+        return data
+
     @model_validator(mode="after")
     def _enough_to_work_with(self):
         if self.mode == "refine" and len(self.client_script.strip()) < 40:

@@ -82,7 +82,7 @@ def execute(task: TaskBody) -> None:
             job.status, job.error = JobStatus.failed, str(e)
         store.save_job(job)
         return
-    pipe = Pipeline(get_llm(), store)
+    pipe = Pipeline(get_llm(), store, fast=settings.fast_pipeline)
     if task.action == "generate":
         pipe.run(job)
     elif task.action == "revise":
