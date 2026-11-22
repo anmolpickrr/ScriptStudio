@@ -1,5 +1,6 @@
 import { currentTheme, setTheme, type Theme } from "../theme";
 import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { Component, createContext, ErrorInfo, KeyboardEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Engine, JobStatus } from "../types";
 import logoUrl from "../assets/logo.svg";
@@ -39,23 +40,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 // ---------------------------------------------------------------- modal
-export function Modal({ title, children, onClose, actions }: {
-  title: string; children: ReactNode; onClose: () => void; actions: ReactNode;
+export function Modal({ title, children, onClose, actions, wide }: {
+  title: string; children: ReactNode; onClose: () => void; actions: ReactNode; wide?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  return (
+  // rendered at the top of the page: an animated parent would otherwise trap the overlay inside itself
+  return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         {children}
         <div className="actions">{actions}</div>
       </div>
-    </div>
-  );
+    </div>, document.body);
 }
 
 // ---------------------------------------------------------------- dropdown menu

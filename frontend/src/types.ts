@@ -55,14 +55,14 @@ export interface ProductFact {
   id: string; category: string; statement: string; verified: boolean; note: string;
   evidence: { source: string; quote: string };
 }
-export interface Revision { at: string; by: string; kind: "feedback" | "concept"; detail: string }
+export interface Revision { at: string; by: string; kind: "feedback" | "concept" | "edit"; detail: string }
 
 export interface Job {
   id: string; owner: string; inputs: JobInputs; status: JobStatus; created_at: string; updated_at: string;
   events: StageEvent[]; flags: Flag[];
   dossier: { url: string; name: string; brand: string; facts: ProductFact[]; packaging_description: string; image_urls: string[] } | null;
   concepts: Concept[]; concept_decision: ConceptDecision | null;
-  script: { title: string; logline: string; scenes: { number: number; label: string; start_sec: number; end_sec: number; visual: string; changed?: string[] }[];
+  script: { title: string; logline: string; scenes: SceneT[]; characters?: { id: string; name: string }[];
             changes?: ChangeNote[] } | null;
   qc_history: QCReport[]; doc_url: string | null; format_version: string; revisions: Revision[]; error: string;
   relay: { kind: "full" | "revise"; round: number; prompt: string; created_at: string; last_error: string; code: string; submitted_via: string } | null;
@@ -89,3 +89,8 @@ export interface FormatSpec {
 }
 
 export interface ChangeNote { scene: number; part: string; before: string; after: string; why: string }
+export interface SceneT {
+  number: number; label: string; start_sec: number; end_sec: number; visual: string; changed?: string[];
+  shot?: string; performance?: string; vo?: string; on_screen_text?: string; music?: string; sfx?: string; transition?: string;
+  dialogue?: { character_id: string; line: string; delivery: string }[];
+}

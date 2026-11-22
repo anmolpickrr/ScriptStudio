@@ -5,6 +5,7 @@ import { EMPTY, saveDraft } from "../brief";
 import { getDriveToken } from "../google";
 import ConnectSetup, { getGptUrl } from "../components/ConnectSetup";
 import { useJobActions } from "../components/Cards";
+import ScriptEditor from "../components/ScriptEditor";
 import { ENGINE_NAME, ENGINE_URL, hostOf, Icon, label, Menu, Modal, Monogram, PageSkeleton, Spinner, StatusBadge, timeAgo, useMedia, useToast } from "../components/ui";
 import { useSession } from "../session";
 import type { Job, JobSummary, StageEvent } from "../types";
@@ -47,7 +48,7 @@ export default function ScriptView() {
   const [loadError, setLoadError] = useState("");
   const [tab, setTab] = useState<Tab>("script");
   const [frameKey, setFrameKey] = useState(0);
-  const [modal, setModal] = useState<"approve" | "revise" | "delete" | null>(null);
+  const [modal, setModal] = useState<"approve" | "revise" | "delete" | "edit" | null>(null);
   const [working, setWorking] = useState("");
   const wide = useMedia("(min-width: 1100px)");
   const jobActs = useJobActions();
@@ -214,7 +215,7 @@ export default function ScriptView() {
       <div className="panel">
         <ol className="timeline">
           {job.revisions.slice().reverse().map((r, i) => (
-            <li key={i}><b>{r.kind === "feedback" ? "Revised with notes" : "Switched concept"}</b> <span className="muted small">· {timeAgo(r.at)}</span>
+            <li key={i}><b>{r.kind === "feedback" ? "Revised with notes" : r.kind === "edit" ? "Edited by hand" : "Switched concept"}</b> <span className="muted small">· {timeAgo(r.at)}</span>
               <div className="muted small" style={{ whiteSpace: "pre-wrap" }}>{r.detail}</div></li>
           ))}
         </ol>
@@ -244,7 +245,8 @@ export default function ScriptView() {
         </div>
         {job.script && !busy && (
           <div className="room-actions">
-            <button className="btn secondary" onClick={() => setModal("revise")}><Icon.edit /> Revise</button>
+            <button className="btn secondary" onClick={() => setModal("edit")} title="Change any line, shot or sound yourself"><Icon.edit /> Edit</button>
+            <button className="btn secondary" onClick={() => setModal("revise")} title="Give notes and get a revised version"><Icon.refine /> Revise</button>
             <Menu trigger={(toggle) => (
               <button className="btn secondary" onClick={toggle} aria-haspopup="menu" disabled={["export", "docx", "download"].includes(working)}>
                 {["export", "docx", "download"].includes(working) ? <Spinner /> : null} Export <Icon.down /></button>
@@ -321,6 +323,7 @@ export default function ScriptView() {
         </>
       ))}
 
+      {modal === "edit" && <ScriptEditor job={job} onClose={() => setModal(null)} onSaved={async () => { await load(); setFrameKey((k) => k + 1); }} />}
       {modal === "revise" && <ReviseModal engine={job.inputs.engine} onClose={() => setModal(null)}
         onSubmit={(feedback) => rerun("revise", { feedback }, job.inputs.engine === "auto" ? "Revising… this takes a minute or two." : `Revision prompt ready — copy it into ${ENGINE_NAME[job.inputs.engine]}.`)} />}
       {modal === "approve" && <ApproveModal blockers={blockers} findings={openFindings.length} admin={!!user?.admin} onClose={() => setModal(null)}

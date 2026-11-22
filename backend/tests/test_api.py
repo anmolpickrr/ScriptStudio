@@ -285,3 +285,23 @@ def test_github_pages_site_uses_header_session_across_origins(client, monkeypatc
     jid = browser.post("/api/jobs", json=BODY, headers=me).json()["id"]
     assert browser.get(f"/api/jobs/{jid}", headers=me).status_code == 200
     assert TestClient(app).get(f"/api/jobs/{jid}", headers=pages).status_code == 404  # another visitor can't see it
+
+
+def test_writer_can_edit_the_script_by_hand(client):
+    job_id = client.post("/api/jobs", json=BODY, headers=H).json()["id"]
+    before = client.get(f"/api/jobs/{job_id}").json()
+    sc = before["script"]["scenes"][0]
+    r = client.post(f"/api/jobs/{job_id}/edit", headers=H, json={
+        "title": "The 9:58 Rush",
+        "scenes": [{"number": sc["number"], "visual": "Close on a phone alarm buzzing on a messy desk.",
+                    "dialogue": [{"character_id": "C1", "line": "Two minutes. Fine.", "delivery": "deadpan, half asleep"}]}]})
+    assert r.status_code == 200
+    after = client.get(f"/api/jobs/{job_id}").json()
+    assert after["script"]["title"] == "The 9:58 Rush"
+    assert after["script"]["scenes"][0]["visual"].startswith("Close on a phone alarm")
+    assert after["script"]["scenes"][0]["dialogue"][0]["delivery"] == "deadpan, half asleep"
+    assert after["revisions"][-1]["kind"] == "edit" and "scene 1 visual" in after["revisions"][-1]["detail"]
+    assert after["qc_history"][-1]["summary"].startswith("Edited by hand")
+    # nothing changed: no new revision
+    assert client.post(f"/api/jobs/{job_id}/edit", headers=H, json={"scenes": []}).status_code == 200
+    assert len(client.get(f"/api/jobs/{job_id}").json()["revisions"]) == len(after["revisions"])

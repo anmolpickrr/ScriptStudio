@@ -368,7 +368,7 @@ class StageEvent(BaseModel):
 class Revision(BaseModel):
     at: str = Field(default_factory=utcnow)
     by: str = ""
-    kind: Literal["feedback", "concept"]
+    kind: Literal["feedback", "concept", "edit"]
     detail: str
 
 

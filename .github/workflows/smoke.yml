@@ -108,8 +108,38 @@ jobs:
           done
           echo "$J" > out/job.json
           jq '{status, error, title: .script.title, scenes: (.script.scenes | length), facts_verified: ([.dossier.facts[]? | select(.verified)] | length),
-               flags: [.flags[] | select(.severity != "info") | .message], qc: .qc_history[-1].scores, passed: .qc_history[-1].passed}' out/job.json | tee out/result.json | tee -a out/diag.txt
+               flags: [.flags[] | select(.severity != "info") | .message], qc: .qc_history[-1].scores, passed: .qc_history[-1].passed,
+               production: {style: .script.style, look: .script.look_and_texture, voice: .script.voice_direction,
+                 music: .script.music_direction, sound: .script.sound_design, pronunciation: (.script.pronunciation | length),
+                 cast_complete: ([.script.characters[]? | select(.appearance != "" and .age_range != "" and .voice != "")] | length),
+                 cast: (.script.characters | length), scenes_with_shots: ([.script.scenes[]? | select((.shots | length) > 0)] | length),
+                 scenes_with_sound: ([.script.scenes[]? | select(.music != "" or .sfx != "")] | length),
+                 production_findings: ([.qc_history[-1].findings[]? | select(.check == "production")] | length)}}' out/job.json | tee out/result.json | tee -a out/diag.txt
           [[ "$S" =~ ^(ready|needs_review)$ ]]
+
+      - name: Refine a client's script
+        if: ${{ inputs.generate }}
+        run: |
+          log() { echo "$*" | tee -a out/diag.txt; }
+          BODY=$(jq -n --arg u "$PRODUCT" '{product_url:$u, mode:"refine", platform:"instagram_reels", duration_sec:30,
+            client_brief:"Keep the idea. Make the hook land in the first two seconds.",
+            client_script:"Scene 1: A guy runs for the bus and his shoes hurt.\nVO: Tired of shoes that hurt?\nScene 2: He puts on the new sneakers and smiles.\nVO: Introducing the most comfortable shoes ever made. Shop now!",
+            product_copy:"Tree Runners for men. Breathable, lightweight sneakers made with eucalyptus tree fiber. Machine washable."}')
+          ID=$(curl -sS -m 90 -A "$UA" -c jar -b jar -H "X-Requested-With: scriptwright" -H "Content-Type: application/json" -X POST "$BASE/api/jobs" -d "$BODY" | jq -r '.id // empty')
+          [ -n "$ID" ] || { log "FAIL refine job not created"; exit 1; }
+          start=$(date +%s)
+          while true; do
+            J=$(curl -sS -m 90 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID"); S=$(jq -r .status <<<"$J")
+            case "$S" in ready|needs_review|approved|failed) break;; esac
+            [ $(( $(date +%s) - start )) -gt 1380 ] && { log "TIMEOUT waiting for refine job"; break; }
+            sleep 10
+          done
+          echo "$J" > out/refine.json
+          jq '{status, error, changes: (.script.changes | length), changed_scenes: ([.script.scenes[]? | select((.changed | length) > 0) | .number]),
+               first_change: .script.changes[0]}' out/refine.json | tee -a out/diag.txt
+          P=$(curl -sS -m 90 -A "$UA" -c jar -b jar "$BASE/api/jobs/$ID/preview")
+          grep -q "What changed from the client" <<<"$P" && log "PASS refine preview lists the changes" || log "FAIL refine preview has no change list"
+          [[ "$S" =~ ^(ready|needs_review)$ ]] && [ "$(jq '.script.changes | length' out/refine.json)" -gt 0 ]
 
       - name: Exports work
         if: ${{ inputs.generate }}

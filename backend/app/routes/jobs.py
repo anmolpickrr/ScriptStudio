@@ -267,6 +267,74 @@ class ApproveRequest(BaseModel):
     acknowledge_flags: bool = False
 
 
+class DialogueEdit(BaseModel):
+    character_id: str = Field(max_length=80)
+    line: str = Field(max_length=2000)
+    delivery: str = Field("", max_length=300)
+
+
+class SceneEdit(BaseModel):
+    number: int
+    label: Optional[str] = Field(None, max_length=120)
+    shot: Optional[str] = Field(None, max_length=1000)
+    visual: Optional[str] = Field(None, max_length=4000)
+    performance: Optional[str] = Field(None, max_length=1000)
+    vo: Optional[str] = Field(None, max_length=2000)
+    dialogue: Optional[list[DialogueEdit]] = Field(None, max_length=20)
+    on_screen_text: Optional[str] = Field(None, max_length=1000)
+    music: Optional[str] = Field(None, max_length=500)
+    sfx: Optional[str] = Field(None, max_length=500)
+    transition: Optional[str] = Field(None, max_length=300)
+
+
+class EditRequest(BaseModel):
+    title: Optional[str] = Field(None, max_length=200)
+    scenes: list[SceneEdit] = Field([], max_length=40)
+
+
+@router.post("/{job_id}/edit")
+def edit_script(job_id: str, req: EditRequest, user: User = Depends(current_user)):
+    """A writer's own edits: saved as typed, then the automatic checks run again (no rewrite, no quota)."""
+    from ..qc.checks import run_checks
+    from ..schemas import DialogueLine, QCReport, Revision
+    store = get_store()
+    job = _get(job_id, user)
+    if not job.script or job.status in BUSY or job.status == JobStatus.awaiting_input:
+        raise HTTPException(409, "This script can't be edited right now.")
+    touched: list[str] = []
+    if req.title is not None and req.title.strip() and req.title.strip() != job.script.title:
+        job.script.title = req.title.strip()
+        touched.append("title")
+    by_n = {sc.number: sc for sc in job.script.scenes}
+    for e in req.scenes:
+        sc = by_n.get(e.number)
+        if not sc:
+            continue
+        for field in ("label", "shot", "visual", "performance", "vo", "on_screen_text", "music", "sfx", "transition"):
+            v = getattr(e, field)
+            if v is not None and v != getattr(sc, field):
+                setattr(sc, field, v)
+                touched.append(f"scene {sc.number} {field.replace('_', ' ')}")
+        if e.dialogue is not None:
+            new = [DialogueLine(**d.model_dump()) for d in e.dialogue if d.line.strip()]
+            if [d.model_dump() for d in new] != [d.model_dump() for d in sc.dialogue]:
+                sc.dialogue = new
+                touched.append(f"scene {sc.number} dialogue")
+    if not touched:
+        return summary(job)
+    spec = store.get_format(job.inputs.format_id)
+    findings = run_checks(job.script, job.inputs, job.dossier, job.brief, spec)
+    passed = not any(f.severity in ("blocker", "major") for f in findings)
+    job.qc_history.append(QCReport(iteration=len(job.qc_history) + 1, findings=findings, scores={}, passed=passed,
+                                   summary="Edited by hand. Structure, timing, product truth, continuity, CTA and "
+                                           "production detail were checked again."))
+    job.revisions.append(Revision(by=user.email, kind="edit", detail="Edited by hand: " + ", ".join(touched[:12])))
+    blockers = any(f.severity == "blocker" for f in job.flags)
+    job.status = JobStatus.ready if passed and not blockers else JobStatus.needs_review
+    store.save_job(job)
+    return summary(job)
+
+
 @router.post("/{job_id}/approve")
 def approve_job(job_id: str, req: ApproveRequest, user: User = Depends(current_user)):
     store = get_store()

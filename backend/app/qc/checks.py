@@ -44,6 +44,40 @@ def run_checks(script: Script, inputs: JobInputs, dossier: ProductDossier | None
     out += check_language(script)
     out += check_cta(script, spec)
     out += check_mandatories(script, inputs, brief)
+    out += check_production(script)
+    return out
+
+
+def check_production(script) -> list[QCFinding]:
+    """Everything a crew or an animator needs must be on the page; gaps feed the revision loop."""
+    out = []
+    f = lambda msg, fix, scene=None, sev="minor": out.append(
+        QCFinding(check="production", severity=sev, scene=scene, message=msg, fix=fix))
+    missing = [n for n, v in (("visual style", script.style), ("look and skin texture", script.look_and_texture),
+                              ("voice direction", script.voice_direction), ("music direction", script.music_direction),
+                              ("sound design", script.sound_design)) if not v.strip()]
+    if missing:
+        f("Missing production direction: " + ", ".join(missing) + ".", "Fill these in so the shoot or animation team has the full brief.",
+)
+    for c in script.characters:
+        gaps = [n for n, v in (("age range", c.age_range), ("appearance", c.appearance), ("expressions", c.expressions),
+                               ("voice and accent", c.voice)) if not v.strip()]
+        if gaps:
+            f(f"{c.name} has no {', '.join(gaps)}.", "Describe them so casting and continuity are clear.")
+    for sc in script.scenes:
+        if not sc.shot.strip() and not sc.shots:
+            f(f"Scene {sc.number} has no camera direction.", "Add framing, angle and movement.", sc.number)
+        elif sc.shots:
+            total = sum(x.seconds for x in sc.shots)
+            if total and abs(total - (sc.end_sec - sc.start_sec)) > 0.6:
+                f(f"Scene {sc.number}: shots add up to {total:g}s but the scene runs {sc.end_sec - sc.start_sec:g}s.",
+                  "Re-time the shots to fit the scene.", sc.number)
+        if not (sc.music or sc.sfx or sc.sfx_music).strip():
+            f(f"Scene {sc.number} has no sound direction.", "Add the music cue and the sounds we hear.", sc.number)
+        for d in sc.dialogue:
+            if not d.delivery.strip():
+                f(f"Scene {sc.number}: a dialogue line has no delivery note.", "Say how it's said (pace, tone, expression).", sc.number)
+                break
     return out
 
 

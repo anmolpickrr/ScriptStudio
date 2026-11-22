@@ -1377,3 +1377,25 @@ main.content { margin: 0 auto; width: min(1280px, calc(100% - 48px)); max-width:
   .mode-card { padding: 12px; gap: 8px; } .mode-card .mc-ic { width: 32px; height: 32px; }
   .mc-t b { font-size: 13px; } .mc-t small { display: none; }
 }
+
+/* the scene editor */
+.modal.wide { width: min(980px, 100%); }
+.modal .actions .grow { flex: 1; align-self: center; }
+.ed-jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; position: sticky; top: -26px; z-index: 2; padding: 8px 0; background: var(--s1); }
+.ed-jump a { display: grid; place-items: center; min-width: 38px; height: 30px; border-radius: 999px; background: var(--s3); color: var(--text-2);
+  font: 600 12px ui-monospace, Menlo, monospace; text-decoration: none !important; }
+.ed-jump a:hover { background: #ddff00; color: #1e1e1e; }
+.ed-scenes { display: flex; flex-direction: column; gap: 14px; }
+.ed-scene { border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: var(--s2); scroll-margin-top: 50px; }
+.ed-scene header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ed-scene header input { flex: 1; height: 36px; font-weight: 600; }
+.ed-n { font: 700 18px var(--display); color: var(--lime-text); width: 30px; }
+.ed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ed-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ed-f.long { grid-column: 1 / -1; }
+.ed-f > span { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.ed-f > span em { font-style: normal; font-weight: 400; color: var(--text-3); margin-left: 4px; }
+.ed-f input, .ed-f textarea, .ed-line select { padding: 9px 11px; font-size: 13px; border-radius: 10px; min-height: 0; }
+.ed-f textarea { resize: vertical; }
+.ed-line { display: grid; grid-template-columns: 130px 1fr 200px 34px; gap: 6px; align-items: center; margin-bottom: 6px; }
+@media (max-width: 720px) { .ed-grid { grid-template-columns: 1fr; } .ed-line { grid-template-columns: 1fr 34px; } .ed-line select, .ed-line input:last-of-type { grid-column: 1 / -1; } }
