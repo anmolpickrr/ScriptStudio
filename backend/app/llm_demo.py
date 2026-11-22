@@ -44,6 +44,8 @@ class DemoLLM:
         self.duration = 30
 
     def structured(self, *, stage, system, user, schema, images=None):
+        if schema.__name__ in ("RelayResult", "RelayRevision"):  # the one-pass route
+            return schema.model_validate(self._one_pass(user, schema.__name__))
         out = getattr(self, f"_{stage}")(user)
         return schema.model_validate(out.model_dump() if isinstance(out, BaseModel) else out)
 
@@ -138,6 +140,24 @@ class DemoLLM:
 
     def _revise(self, user):
         return self._write(user)
+
+    def _one_pass(self, user, kind):
+        ext = self._extract_product(user.split("PRODUCT SOURCE", 1)[-1])
+        facts = [{"id": f"F{n}", "category": f["category"], "statement": f["statement"], "quote": f["quote"]}
+                 for n, f in enumerate(ext["facts"], 1)]
+        self.facts = [(f["id"], f["statement"]) for f in facts]
+        m = re.search(r"exactly (\d+)s", user)
+        if m:
+            self.duration = int(m.group(1))
+        script = (self._refine(user) if "CLIENT SCRIPT" in user else self._write(user)).model_dump()
+        script["cta"] = {k: script["cta"][k] for k in ("line", "action", "on_screen_text")}
+        if kind == "RelayRevision":
+            return {"script": script}
+        return {"product_name": ext["product_name"], "brand": "", "facts": facts, "unknowns": ext["unknowns"],
+                "brief": {"objective": "Per brief", "key_message": "Per brief", "audience": "Per brief", "tone": "Conversational",
+                          "assumptions": ["Demo mode is on: no writing model was used."]},
+                "concepts": [{"title": "Demo concept", "logline": "Structural placeholder.", "hook_line": "Okay, real talk."}],
+                "chosen_index": 0, "script": script}
 
     def _refine(self, user):
         """Demo refine: the client's first line is kept, one line is tightened and recorded as a change."""
