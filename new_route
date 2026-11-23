@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet" />
+    <title>ScriptStudio</title>
+    <script>
+      /* Day theme between sunrise and sunset in India, Night after dark (as in the Creative Ops Tracker); a manual
+         choice holds until the light next changes. Runs before paint so there's no flash. */
+      (function () {
+        var SUN = [[430, 1060], [418, 1085], [393, 1105], [362, 1123], [338, 1140], [327, 1155], [335, 1155], [352, 1135], [368, 1102], [383, 1068], [403, 1040], [423, 1040]];
+        var p = {};
+        try { new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', month: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; }); } catch (e) {}
+        var s = SUN[(+p.month || 1) - 1], mins = +p.hour * 60 + +p.minute, t = mins >= s[0] && mins < s[1] ? 'light' : 'dark';
+        try { var o = localStorage.getItem('ss:theme'), u = +localStorage.getItem('ss:themeUntil') || 0; if (o && u && Date.now() < u) t = o; } catch (e) {}
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <style>
+      /* shown until the app starts */
+      html, body { margin: 0; height: 100%; background: #131315; }
+      html[data-theme="light"], html[data-theme="light"] body { background: #eeeeec; }
+      .boot { position: fixed; inset: 0; display: grid; place-items: center; }
+      .boot div { display: grid; justify-items: center; gap: 22px; padding: 28px 34px; border-radius: 28px; background: #131315; }
+      .boot img { width: 170px; height: auto; }
+      .boot b { display: block; width: 200px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+      .boot b i { display: block; width: 35%; height: 100%; border-radius: inherit; background: #ddff00; animation: boot 1.3s ease-in-out infinite; }
+      @keyframes boot { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+      @media (prefers-reduced-motion: reduce) { .boot b i { animation: none; width: 100%; } }
+    </style>
+    <script type="module" crossorigin src="/assets/index-Bn0eGGRq.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BlvDZFTm.css">
+  </head>
+  <body>
+    <div id="root"><div class="boot"><div><img src="/logo.svg" alt="ScriptStudio by fastrr" /><b><i></i></b></div></div></div>
+  </body>
+</html>
